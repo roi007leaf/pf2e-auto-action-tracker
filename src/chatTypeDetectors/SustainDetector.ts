@@ -1,9 +1,10 @@
-import { IActionDetector } from './ActionDetector';
+import { IActionDetector } from './IActionDetector';
 import { SCOPE } from '../globals';
 
 export class SustainDetector {
 
     static readonly id = "SustainDetector";
+    static readonly type = "sustain";
 
     static shouldBreak(message: any): boolean {
         return false;

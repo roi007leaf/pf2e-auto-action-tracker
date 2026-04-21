@@ -16,6 +16,7 @@ Hooks.once("init", () => {
     loadTemplates([
         `modules/${SCOPE}/templates/sustain-reminder.hbs`
     ]);
+    ChatManager.registerOverrideListeners();
 });
 
 // Any setup related stuff
@@ -26,6 +27,32 @@ Hooks.once("setup", () => {
 // Once it is ready, now we can wrap functions
 Hooks.once("ready", () => {
     WrapperManager.wrapFunctions();
+});
+
+Hooks.on("closeDamageModifierDialog", async (app: any) => {
+    // 1. Cleanup the actor-level temporary ID regardless of how it closed
+    if (app.actor) {
+        delete (app.actor as any)._lastDamageOriginId;
+    }
+
+    // 2. If the dialog closed because they rolled, the message creation 
+    // logic already handled the queue/flags.
+    if (app.element?.[0]?._wasRolled) return;
+
+    // 3. Find the combatant
+    const tokenId = app.token?.id;
+    const actorId = app.actor?.id;
+
+    const combatant = game.combat?.combatants.find((c: any) =>
+        tokenId ? c.tokenId === tokenId : c.actorId === actorId
+    );
+
+    // GUARD: If no combatant is found (e.g. combat ended or out of combat), stop.
+    if (!combatant) return;
+
+    // 4. Use your semaphore to safely pop the abandoned intent from the queue
+    const c = combatant as any;
+    await ChatManager.handleDamageModifierDialogRender(combatant, app);
 });
 
 // Create Chat Hook
@@ -77,6 +104,7 @@ Hooks.on("preCreateChatMessage", (message: any) => {
     const speaker = message.speaker;
     const uniqueKey = speaker.token || speaker.actor;
     const intentItemId = recentIntent.get(uniqueKey);
+    const combatant = ChatManager.getCombatantFromMsg(message);
 
     // PF2e uses origin.uuid for item links in chat
     const messageItemId = message.flags?.pf2e?.origin?.uuid?.split('.').pop();
@@ -91,7 +119,6 @@ Hooks.on("preCreateChatMessage", (message: any) => {
 
 // Rendering the chat message
 Hooks.on("renderChatMessage", (message: ChatMessagePF2e, html: any) => {
-
     ChatManager.onRenderChatMessage(message, html);
 });
 
@@ -104,6 +131,19 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
         CombatUIManager.injectIcons(htmlElement, c);
     });
     CombatUIManager.activateListeners(htmlElement);
+});
+
+Hooks.on("renderDamageModifierDialog", async (app: any, html: JQuery) => {
+    // 1. Find the combatant associated with this dialog
+    const tokenId = app.token?.id;
+    const actorId = app.actor?.id;
+
+    const combatant = game.combat?.combatants.find((c: any) =>
+        tokenId ? c.tokenId === tokenId : c.actorId === actorId
+    );
+
+    if (!combatant) return;
+    ChatManager.handleDamageModifierDialogRender(combatant, app);
 });
 
 // Chat card changed (like Heal selecting a cost or visibility)
@@ -166,8 +206,8 @@ Hooks.on("updateCombat", async (combat: EncounterPF2e, updateData: any, options:
 Hooks.on("updateToken", (tokenDoc: any, update: any) => {
     if (game.user?.id !== game.users?.activeGM?.id) return;
 
-    // Only care if x or y changed
-    if (!("x" in update || "y" in update)) return;
+    // Only care if x or y changed or movement type
+    if (!("x" in update || "y" in update || update.movementAction)) return;
 
     // Delegate everything to MovementManager
     MovementManager.handleTokenUpdate(tokenDoc, update);

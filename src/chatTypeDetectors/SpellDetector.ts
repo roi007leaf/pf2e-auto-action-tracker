@@ -1,10 +1,11 @@
-import { IActionDetector } from './ActionDetector';
+import { IActionDetector } from './IActionDetector';
 import { SCOPE } from '../globals';
 import { getCostFromMsgFlavor, getIsReaction, getLabelFromMsgFlavor, getSlugFromMsgFlavor } from './detectorUtilities';
 
 export class SpellDetector {
 
     static readonly id = "SpellDetector";
+    static readonly type = "spell";
 
     /**
      * We break if this message is a secondary effect of a spell.

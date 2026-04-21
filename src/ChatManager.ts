@@ -14,11 +14,72 @@ export class ChatManager {
 
     private static rerollQueue: Record<CombatantId, string[]> = {};
 
-    /*
-     * Handle a chat message payload.  Handles re-rolls, sustains, and any actions taken from chat messages...
-     * This will ensure that if the message is modified, we edit the proper log entry, otherwise we create a new one
+    // Keyed by Combatant ID to allow multiple combatants to process in parallel
+    private static _queueSemaphore = new Map<string, Promise<void>>();
+
+    /**
+     * Helper to ensure flag updates for a specific combatant happen sequentially
      */
-    static async handleChatPayload(message: any) {
+    private static async _enqueueUpdate(combatantId: string, updateFn: () => Promise<void>) {
+        const existingPromise = this._queueSemaphore.get(combatantId) || Promise.resolve();
+
+        const newPromise = existingPromise.then(async () => {
+            try {
+                await updateFn();
+            } catch (err) {
+                console.error("PF2e Action Automation | Queue Update Error:", err);
+            }
+        });
+
+        this._queueSemaphore.set(combatantId, newPromise);
+        return newPromise;
+    }
+
+    public static registerOverrideListeners() {
+        document.addEventListener('click', async (event) => {
+            const target = event.target as HTMLElement;
+            const btn = target.closest<HTMLButtonElement>('button');
+            if (!btn) return;
+
+            if (btn.matches('[data-action="strike-damage"], [data-action="strike-critical"], [data-action="spell-damage"], [data-action="damage"]')) {
+                const chatMessage = btn.closest('.chat-message');
+                const originMsgId = chatMessage?.getAttribute('data-message-id');
+                if (!originMsgId) return;
+
+                const message = game.messages.get(originMsgId);
+                const combatant = this.getCombatantFromMsg(message);
+                if (!combatant) return;
+
+                await ChatManager._enqueueUpdate((combatant as any).id, async () => {
+                    const c = combatant as any;
+                    const queue = (c.getFlag(SCOPE, 'pendingDamageQueue') as string[]) || [];
+                    queue.push(originMsgId);
+                    await c.setFlag(SCOPE, 'pendingDamageQueue', queue);
+                });
+
+                // Note: If the dialog opens, the render hook (Step 2) will 
+                // handle moving this ID from the queue to the Dialog instance.
+            }
+        }, { capture: true });
+    }
+
+    public static async handleDamageModifierDialogRender(combatant: CombatantPF2e, app: any) {
+        await ChatManager._enqueueUpdate((combatant as any).id, async () => {
+            const c = combatant as any;
+            const queue = (c.getFlag(SCOPE, 'pendingDamageQueue') as string[]) || [];
+            if (queue.length === 0) return;
+
+            const originMsgId = queue.pop();
+            if (!originMsgId) return;
+
+            await c.setFlag(SCOPE, 'pendingDamageQueue', queue);
+
+            // Attach to the app instance AFTER the flag is safely updated
+            app.options.originatingMessageId = originMsgId;
+        });
+    }
+
+    public static getCombatantFromMsg(message: any): CombatantPF2e | undefined {
         const actor = message.actor;
         if (!actor || !(game as any).combat?.active) return;
         const speaker = message.speaker;
@@ -26,10 +87,83 @@ export class ChatManager {
             speaker.token ? c.tokenId === speaker.token : c.actorId === actor.id
         );
 
+        return combatant;
+    }
+
+    public static async maybeGetOriginMsgId(message: any) {
+        const isDamageRoll = message.flags?.pf2e?.context?.type === "damage-roll";
+        if (!isDamageRoll) return;
+
+        const combatant = this.getCombatantFromMsg(message);
         if (!combatant) return;
+
+        let originatingMsgId: string | undefined;
+
+        // A. Check if there's an active Dialog for this actor
+        const activeDialog = Object.values(ui.windows).find(
+            (w: any) => w.constructor.name === "DamageModifierDialog" && w.actor?.id === (combatant as any).actorId
+        ) as any;
+
+        if (activeDialog?.options?.originatingMessageId) {
+            originatingMsgId = activeDialog.options.originatingMessageId;
+            // Clean up the dialog so it doesn't double-trigger
+            delete activeDialog.options.originatingMessageId;
+        } else {
+            // B. Fallback to Queue (The Shift+Click scenario)
+            // We wrap this in the semaphore too to ensure we don't have a read/write collision
+            await this._enqueueUpdate((combatant as any).id, async () => {
+                const c = combatant as any;
+                const queue = (c.getFlag(SCOPE, 'pendingDamageQueue') as string[]) || [];
+
+                originatingMsgId = queue.shift(); // FIFO for rolls
+
+                if (queue.length > 0) {
+                    await c.setFlag(SCOPE, 'pendingDamageQueue', queue);
+                } else {
+                    await c.unsetFlag(SCOPE, 'pendingDamageQueue');
+                }
+            });
+        }
+
+        if (!originatingMsgId) {
+            // A. Check if there's an active Dialog for this actor
+            // We look for the dialog that is currently being "submitted"
+            const activeDialog = Object.values(ui.windows).find((w: any) =>
+                w.constructor.name === "DamageModifierDialog" &&
+                w.actor?.id === (combatant as any).actorId &&
+                w.options?.originatingMessageId // Ensure it has our custom flag
+            ) as any;
+
+            if (activeDialog?.options?.originatingMessageId) {
+                originatingMsgId = activeDialog.options.originatingMessageId;
+                // IMPORTANT: Mark it so other hooks don't grab it
+                delete activeDialog.options.originatingMessageId;
+            }
+        }
+
+        return originatingMsgId;
+
+    }
+
+    /*
+     * Handle a chat message payload.  Handles re-rolls, sustains, and any actions taken from chat messages...
+     * This will ensure that if the message is modified, we edit the proper log entry, otherwise we create a new one
+     */
+    static async handleChatPayload(message: any) {
+        const combatant = this.getCombatantFromMsg(message);
+        const c = combatant as any;
+
+        if (!combatant) return;
+
+        const originId = await this.maybeGetOriginMsgId(message);
+        if (originId) {
+            ActionManager.linkDamageToAttack(combatant, originId, message.id);
+            return;
+        }
+
         const pf2eFlags = message.flags?.pf2e;
         if (pf2eFlags?.context?.isReroll) {
-            const oldMsgId = this.popFromRerollQueue(combatant.id);
+            const oldMsgId = this.popFromRerollQueue(c.id);
 
             if (!oldMsgId) {
                 logConsole("Reroll detected but the queue was empty.");
@@ -69,7 +203,7 @@ export class ChatManager {
             await ActionManager.editAction(combatant, message.id, update);
         } else {
             // 1. Determine if it is a reaction based on the parser OR the turn state
-            const isActiveTurn = (game as any).combat.combatant?.id === combatant.id;
+            const isActiveTurn = (game as any).combat.combatant?.id === c.id;
             const type = (data.isReaction || !isActiveTurn) ? 'reaction' : 'action';
 
             // 2. Add the action
@@ -78,7 +212,10 @@ export class ChatManager {
                 msgId: message.id,
                 label: data.label,
                 type: type,
-                isQuickenedEligible
+                slug: data.slug,
+                isQuickenedEligible,
+                category: data.category,
+                linkedMessages: []
             });
         }
     }
@@ -107,7 +244,6 @@ export class ChatManager {
         sustainButtons.on("click", async (event) => {
             event.preventDefault();
             const button = event.currentTarget;
-            // CRITICAL: Get combatantId from the button dataset
             const { action, actorId, itemId, itemName, combatantId } = button.dataset;
 
             const actor = (game.actors as any).get(actorId ?? "");
@@ -326,7 +462,7 @@ export class ChatManager {
         }
     }
 
-    private static runMessageDetectors(message: any): { cost: number, slug: string, label: string, isReaction: boolean } | undefined {
+    private static runMessageDetectors(message: any): { cost: number, slug: string, label: string, isReaction: boolean, category: string } | undefined {
         const activeDetectors = [
             Detectors.HardIgnoreDetector,
             Detectors.SustainDetector,
@@ -351,7 +487,7 @@ export class ChatManager {
                 const isPublic = message.whisper.length === 0 || message.whisper.includes(game.user.id);
                 const finalLabel = isPublic ? details.label : "Secret Action";
 
-                return { cost: details.cost, slug: details.slug, label: finalLabel, isReaction: details.isReaction };
+                return { cost: details.cost, slug: details.slug, label: finalLabel, isReaction: details.isReaction, category: Detector.type };
             }
         }
 

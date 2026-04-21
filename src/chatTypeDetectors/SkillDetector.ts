@@ -1,8 +1,10 @@
-import { IActionDetector } from './ActionDetector';
+import { logInfo } from '../logger';
+import { IActionDetector } from './IActionDetector';
 import { getIsReaction } from './detectorUtilities';
 
 export class SkillDetector {
     static readonly id = "SkillDetector";
+    static readonly type = "skill"; // Ensure this matches your library.ts!
 
     static shouldBreak() { return false; }
 
@@ -13,11 +15,31 @@ export class SkillDetector {
 
     static getDetails(message: any) {
         const context = message.flags?.pf2e?.context;
+        const options = context?.options || [];
+
+        // 1. Extract the specific Skill (e.g., "athletics")
+        const skillOption = options.find((o: string) => o.startsWith("check:statistic:"));
+        const skillSlug = skillOption ? skillOption.replace("check:statistic:", "") : "";
+
+        // 3. Determine the Slug
+        // We prioritize the action (shove) but fallback to the skill (athletics)
+        const slug = skillSlug || context?.type || "skill-check";
+
+        // 4. Clean the Label
+        let label = context?.title || "Skill Check";
+        if (label.includes("<")) {
+            // Strip HTML tags and clean up whitespace
+            label = label.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+            // Optional: If the label is "Shove 1 (Athletics Check)", 
+            // you could regex just the part inside <strong> if you want it even cleaner.
+        }
+
         const cost = 1;
-        const slug = context?.type || "skill-check";
-        const label = context?.title || "Skill Check";
         const htmlPool = `${message.flavor || ""} ${message.content || ""}`.trim();
         const isReaction = getIsReaction(message.item, message.flags?.pf2e, htmlPool);
+
+        logInfo('context: ', context);
+        logInfo('return: ', { cost, slug, label, isReaction });
 
         return { cost, slug, label, isReaction };
     }

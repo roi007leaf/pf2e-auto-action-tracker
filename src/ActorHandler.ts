@@ -80,22 +80,28 @@ export class ActorHandler {
     }
 
     /**
-     * Determines active speed based on elevation
+     * Determines active speed
      */
-    static getActiveSpeed(actor: ActorPF2e, isFlying: boolean): number {
-        if (!actor.isOfType("creature")) return 0;
+    static getActiveSpeed(actor: ActorPF2e, movementMode: string): number {
+        const speed_floor = 5;
+        if (!actor.isOfType("creature")) return speed_floor;
 
         const attributes = actor.system.attributes as any;
         const speed = attributes.speed;
 
         if (!speed) return 0;
 
-        if (isFlying) {
-            const flySpeed = speed.otherSpeeds?.find((s: any) => s.type === "fly");
-            return flySpeed?.total ?? 0;
+        // Handle the standard land speed
+        if (movementMode === "stride" || movementMode === "land") {
+            return speed.total ?? speed_floor;
         }
 
-        return speed.total ?? 0;
+        // Handle all other PF2e speeds (fly, swim, burrow, climb)
+        const specialSpeed = speed.otherSpeeds?.find((s: any) => s.type === movementMode);
+
+        // Fallback logic: if a mode is selected but no specific speed exists, 
+        // default to our speed_floor.
+        return specialSpeed?.total ?? speed_floor;
     }
 
     /**

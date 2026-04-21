@@ -60,31 +60,37 @@ export class MovementManager {
         return distance;
     }
 
-    /**
-     *  Check for difficult terrain during a movement
-     */
-    private static checkDifficultTerrain(token: any, coordList: any[]): boolean {
-        if (!canvas.regions) return false;
+    static measurePath(actor: any, token: any, path: any[], movementMode: string) {
+        const { distance } = (canvas.grid as any).measurePath(path);
+        const mode = movementMode || "stride";
+        const activeSpeed = ActorHandler.getActiveSpeed(actor, mode) || 30;
+        const cost = Math.ceil(distance / activeSpeed);
+        const isDifficult = this.checkDifficultTerrain(token, path);
+        const label = this.getMovementLabel(distance, cost, mode, isDifficult);
 
-        // Check the last point in the move
-        const lastPoint = coordList[coordList.length - 1];
-        if (!lastPoint) return false;
+        return { distance, cost, isDifficult, label };
+    }
 
-        return (canvas.regions as any).placeables.some((r: any) =>
-            r.document.behaviors.some((b: any) => !b.disabled && b.type === "environmentFeature") &&
-            token.testInsideRegion(r, lastPoint)
-        );
+    static getPathData(actor: ActorPF2e, tokenDoc: any, coordList: any[], mode: string) {
+        const path = coordList.map(p => ({ x: p.x, y: p.y }));
+        const { distance } = (canvas.grid as any).measurePath(path);
+        const activeSpeed = ActorHandler.getActiveSpeed(actor, mode) || 30;
+        const cost = Math.ceil(distance / activeSpeed);
+        const isDifficult = this.checkDifficultTerrain(tokenDoc.object, coordList);
+        const label = this.getMovementLabel(distance, cost, mode, isDifficult);
+
+        return { distance, cost, label };
     }
 
     /**
-     * Handles movements for a token.  Will use the PF2E rules class to properly measure the distance based on the coordinates
-     * provided by Foundry, and find the appropriate number of actions needed to move that distance
-     * Note: Also handles Ctrl + Z "undo", removing actions to get to the move action if needed -> This is in case
-     *       a move -> strike -> move occurs, and the first move is needed to hit the strike.  Will undo the strike and send a whisper
-     *       to the actor and GM so they can do what is needed to finish undoing the strike as that is not automated (yet?)
-     * @param recursiveCall - If set to false, will store the movement coordinates list on the combatant.
-     * @returns 
-     */
+      * Handles movements for a token.  Will use the PF2E rules class to properly measure the distance based on the coordinates
+      * provided by Foundry, and find the appropriate number of actions needed to move that distance
+      * Note: Also handles Ctrl + Z "undo", removing actions to get to the move action if needed -> This is in case
+      *       a move -> strike -> move occurs, and the first move is needed to hit the strike.  Will undo the strike and send a whisper
+      *       to the actor and GM so they can do what is needed to finish undoing the strike as that is not automated (yet?)
+      * @param recursiveCall - If set to false, will store the movement coordinates list on the combatant.
+      * @returns 
+      */
     private static async _processMovement(combatant: CombatantPF2e, tokenDoc: any, coordList: any[], recursiveCall: boolean): Promise<void> {
         const c = combatant as any;
         if (!(game as any).combat?.active) return;
@@ -92,24 +98,12 @@ export class MovementManager {
         // combatant during someone else's turn, just ignore it... and let a manual addition handle if desired
         if ((game as any).combat.combatant?.id !== c.id) return;
 
-        const currentActions = [...ActionManager.getActions(combatant)];
         const actor: ActorPF2e = c.actor;
         if (!actor) return;
 
         // --- 1. HANDLE COMPLETE CLEAR (Undo to zero) ---
         if (coordList.length === 0) {
-            let foundMove = false;
-            while (currentActions.length > 0 && !foundMove) {
-                const action = currentActions.pop();
-                if (!action) break;
-                if (MovementManager.isMoveAction(action.msgId)) {
-                    foundMove = true;
-                } else {
-                    ChatManager.triggerAlert(actor, 'Undo Correction', `Movement undo detected. Reverted: ${action.label}`, '');
-                }
-                await ActionManager.removeAction(combatant, action.msgId);
-            }
-            MovementManager._historyLengths.delete(tokenDoc.id);
+            await this._performUndo(combatant, actor, tokenDoc);
             return;
         }
 
@@ -120,60 +114,62 @@ export class MovementManager {
         // Jitter/GM Drag Checks
         if (distance === 0 || distance > 200) return;
 
-        const activeSpeed = ActorHandler.getActiveSpeed(actor, (tokenDoc.elevation || 0) > 0);
+        const movementMode = tokenDoc.movementAction === "walk" ? "stride" : tokenDoc.movementAction;
+        const activeSpeed = ActorHandler.getActiveSpeed(actor, movementMode);
         const isDifficult = MovementManager.checkDifficultTerrain(tokenDoc.object, coordList);
 
+        const allActions = ActionManager.getFlattenedActions(combatant);
+        const moveActions = allActions.filter(a => MovementManager.isMoveAction(a.msgId));
+
         const getDist = (act: any) => {
-            if (!act?.label) return 0;
             if (act.label === 'Step') return 5;
             const match = act.label.match(/\d+/);
             return match ? parseInt(match[0]) : 0;
         };
-
-        // Calculate previously recorded movement
-        const moveActions = currentActions.filter(a => MovementManager.isMoveAction(a.msgId));
         const totalRecorded = moveActions.reduce((acc, a) => acc + getDist(a), 0);
 
         // --- 2. EVALUATE CHANGES ---
-
-        // A. NO CHANGE
         if (distance === totalRecorded) return;
 
-        const lastAction = currentActions[currentActions.length - 1];
-        // B. UNDO (Ruler is shorter than Log)
-        // B. ACTUAL UNDO (Ctrl+Z detected via history length)
+        const lastResult = ActionManager.getLastAction(combatant);
+        const activeMsgId = lastResult?.isSubAction ? lastResult.subAction?.msgId : lastResult?.entry.msgId;
+
+        // B. ACTUAL UNDO (Ctrl+Z detected)
         if (MovementManager.isUndoMovement(tokenDoc, coordList)) {
-            if (lastAction) {
-                await ActionManager.removeAction(combatant, lastAction.msgId);
-                if (!MovementManager.isMoveAction(lastAction.msgId)) {
-                    ChatManager.triggerAlert(actor, 'Undo Correction', `Movement undo detected. Reverted: ${lastAction.label}`, 'undoAlert');
+            if (lastResult && activeMsgId) {
+                await ActionManager.removeAction(combatant, activeMsgId);
+                if (!MovementManager.isMoveAction(activeMsgId)) {
+                    ChatManager.triggerAlert(actor, 'Undo Correction', `Movement undo detected. Reverted: ${lastResult.actionLabel ?? lastResult.entry.label}`, 'undoAlert');
                 }
-                // Sync the history length after the pop
                 MovementManager.storeMovement(tokenDoc, coordList);
-                // Recurse to see if we need to undo more
                 await MovementManager._processMovement(combatant, tokenDoc, coordList, true);
             }
             return;
         }
 
-        // C. MOUSE MOVEMENT (Adjusting the current ruler)
+        // C. TOKEN MOVEMENT (Adjusting current ruler or adding new segment)
         if (distance !== totalRecorded) {
-            if (lastAction && MovementManager.isMoveAction(lastAction.msgId)) {
-                // Just edit the existing move label/cost, don't delete anything!
-                const distBeforeThisMove = totalRecorded - getDist(lastAction);
-                const newDistance = distance - distBeforeThisMove;
-
-                const newCost = Math.ceil(newDistance / activeSpeed);
-                const label = MovementManager.getMovementLabel(newDistance, newCost, tokenDoc, isDifficult);
-                await ActionManager.editAction(combatant, lastAction.msgId, { label, cost: newCost });
+            if (lastResult && activeMsgId && MovementManager.isMoveAction(activeMsgId)) {
+                const newCost = Math.ceil(distance / activeSpeed);
+                const label = MovementManager.getMovementLabel(distance, newCost, movementMode, isDifficult);
+                await ActionManager.editAction(combatant, activeMsgId, { label, cost: newCost, slug: movementMode });
             } else {
-                // New movement segment
                 const newDistance = distance - totalRecorded;
                 if (newDistance > 0) {
                     const moveMsgId = `move-${tokenDoc.id}-${Date.now()}`;
                     const cost = Math.ceil(newDistance / activeSpeed);
-                    const label = MovementManager.getMovementLabel(newDistance, cost, tokenDoc, isDifficult);
-                    await ActionManager.addAction(combatant, { cost, msgId: moveMsgId, label, type: 'action', isQuickenedEligible: true });
+                    const label = MovementManager.getMovementLabel(newDistance, cost, movementMode, isDifficult);
+
+                    await ActionManager.addAction(combatant, {
+                        cost,
+                        msgId: moveMsgId,
+                        label,
+                        type: 'action',
+                        category: "move",
+                        slug: movementMode,
+                        linkedMessages: [],
+                        isQuickenedEligible: true
+                    });
                 }
             }
         }
@@ -181,32 +177,58 @@ export class MovementManager {
     }
 
     /**
-     * Centralized place to get our movement label
+     * Dedicated Undo Handler for readability.
+     * Pops actions until a movement action is found and removed.
      */
-    static getMovementLabel(distance: number, cost: number, tokenDoc: any, isDifficult: boolean) {
-        if (tokenDoc.elevation > 0) return `Fly: ${distance}ft`;
+    private static async _performUndo(combatant: any, actor: any, tokenDoc: any) {
+        let safety = 0;
+        while (safety < 50) {
+            const lastResult = ActionManager.getLastAction(combatant);
+            if (!lastResult) break;
 
-        // In PF2e, you can't Step into difficult terrain.
-        // Also, a Step is always exactly 5ft and 1 action.
-        if (distance === 5 && cost === 1 && !isDifficult) {
-            return 'Step';
+            const targetId = lastResult.isSubAction ? lastResult.subAction?.msgId : lastResult.entry.msgId;
+            const label = lastResult.isSubAction ? lastResult.actionLabel : lastResult.entry.label;
+
+            if (targetId) {
+                const wasMove = MovementManager.isMoveAction(targetId);
+                await ActionManager.removeAction(combatant, targetId);
+
+                if (!wasMove) {
+                    ChatManager.triggerAlert(actor, 'Undo Correction', `Movement undo detected. Reverted: ${label}`, '');
+                } else {
+                    break; // Successfully removed the movement segment
+                }
+            }
+            safety++;
         }
-
-        return `Stride: ${distance}ft`;
+        MovementManager._historyLengths.delete(tokenDoc.id);
     }
 
-    /**
-      * Stores the current coordList length into local memory.
-      */
+    static getMovementLabel(distance: number, cost: number, mode: string, isDifficult: boolean) {
+        if (distance === 5 && cost === 1 && !isDifficult && mode === "stride") {
+            return 'Step';
+        }
+        const capitalized = mode.charAt(0).toUpperCase() + mode.slice(1);
+        return `${capitalized}: ${distance}ft`;
+    }
+
+    private static checkDifficultTerrain(token: any, coordList: any[]): boolean {
+        if (!canvas.regions) return false;
+        const lastPoint = coordList[coordList.length - 1];
+        if (!lastPoint) return false;
+
+        return (canvas.regions as any).placeables.some((r: any) =>
+            r.document.behaviors.some((b: any) => !b.disabled && b.type === "environmentFeature") &&
+            token.testInsideRegion(r, lastPoint)
+        );
+    }
+
     private static storeMovement(tokenDoc: any, coordList: any[]) {
         MovementManager._historyLengths.set(tokenDoc.id, coordList.length);
     }
 
-    /**
-     * Compares the current coordList length against local memory.
-     */
     private static isUndoMovement(tokenDoc: any, coordList: any[]): boolean {
-        const lastHistoryLength = MovementManager._historyLengths.get(tokenDoc.id) || 0;
-        return coordList.length < lastHistoryLength;
+        const lastLength = MovementManager._historyLengths.get(tokenDoc.id) || 0;
+        return coordList.length < lastLength;
     }
 }

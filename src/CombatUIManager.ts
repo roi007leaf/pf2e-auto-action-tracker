@@ -3,6 +3,8 @@ import { SCOPE } from "./globals";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
 import { ActorHandler } from "./ActorHandler";
 import { MovementManager } from "./MovementManager";
+import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
+import { logWarn } from "./logger";
 
 export class CombatUIManager {
 
@@ -200,14 +202,38 @@ export class CombatUIManager {
 
         // Render Manual override button
         if (isGM || isOwner) {
-            const addBtn = document.createElement("span");
-            // Use 'action-icon' so our global listener catches it, 
-            // and 'add-button' for our specific logic.
-            addBtn.className = "action-icon add-button tracker-tooltip";
-            addBtn.dataset.tooltip = "Add Manual Action";
-            addBtn.dataset.combatantId = c.id; // Crucial for the handler
-            addBtn.innerHTML = '<i class="fas fa-plus-circle"></i>';
-            actionLine.appendChild(addBtn);
+            const lastAction = ActionManager.getLastAction(combatant);
+            const lastSpecialAction = lastAction?.entry.ComplexActionState;
+            const activeSpecialAction = !ComplexActionEngine.isComplete(lastSpecialAction)
+
+            if (lastSpecialAction && activeSpecialAction) {
+                const finishBtn = document.createElement("span");
+                const canComplete = ComplexActionEngine.canComplete(lastSpecialAction);
+
+                // Use 'finish-button' for specific logic, keep 'action-icon' for the global listener
+                finishBtn.className = `action-icon finish-button tracker-tooltip ${!canComplete ? 'disabled' : ''}`;
+                finishBtn.dataset.tooltip = canComplete ? `Finish ${ComplexActionEngine.getName(lastSpecialAction)}` : `Waiting for requirements...`;
+                finishBtn.dataset.combatantId = c.id;
+
+                // A "Checkmark" or "Flag" icon often represents completion well in PF2e UI
+                finishBtn.innerHTML = '<i class="fas fa-check-circle"></i>';
+
+                if (!canComplete) {
+                    finishBtn.style.opacity = "0.4";
+                    finishBtn.style.cursor = "not-allowed";
+                }
+
+                actionLine.appendChild(finishBtn);
+            } else {
+                const addBtn = document.createElement("span");
+                // Use 'action-icon' so our global listener catches it, 
+                // and 'add-button' for our specific logic.
+                addBtn.className = "action-icon add-button tracker-tooltip";
+                addBtn.dataset.tooltip = "Add Manual Action";
+                addBtn.dataset.combatantId = c.id; // Crucial for the handler
+                addBtn.innerHTML = '<i class="fas fa-plus-circle"></i>';
+                actionLine.appendChild(addBtn);
+            }
         }
 
         container.appendChild(actionLine);
@@ -257,11 +283,14 @@ export class CombatUIManager {
         // Capture phase listeners (true) to override Foundry core behavior
         html.addEventListener('click', (event: MouseEvent) => {
             const target = event.target as HTMLElement;
-            if (target?.classList.contains('action-icon')) {
+            // Check if the click was on the icon OR inside the icon
+            const iconBtn = target.closest('.action-icon');
+
+            if (iconBtn) {
                 event.preventDefault();
                 event.stopPropagation();
                 event.stopImmediatePropagation();
-                this._handleIconClick(target);
+                this._handleIconClick(iconBtn as HTMLElement); // Pass the SPAN, not the I tag
             }
         }, true);
 
@@ -354,7 +383,9 @@ export class CombatUIManager {
                 msgId: `manual-${Date.now()}`,
                 label: result.label,
                 type: isReaction ? 'reaction' : 'action',
-                isQuickenedEligible: false
+                isQuickenedEligible: false,
+                category: 'manual',
+                linkedMessages: []
             });
         }
     }
@@ -386,10 +417,33 @@ export class CombatUIManager {
      */
     private static async _handleIconClick(target: HTMLElement) {
 
-        if (target.classList.contains('add-button') || target.parentElement?.classList.contains('add-button')) {
-            const btn = target.classList.contains('add-button') ? target : target.parentElement!;
-            const combatantId = btn.dataset.combatantId;
-            const combatant = (game.combat as any)?.combatants.get(combatantId);
+        const btn = target.classList.contains('action-icon') ? target : target.parentElement;
+        if (!btn) return;
+
+        const combatantId = btn.dataset.combatantId;
+        const combatant = (game.combat as any)?.combatants.get(combatantId);
+
+        // Handle Finish Button
+        if (btn.classList.contains('finish-button')) {
+            if (btn.classList.contains('disabled')) return; // Guard for minOccurrences
+
+            if (combatant) {
+                // Trigger your engine completion
+                const lastAction = ActionManager.getLastAction(combatant);
+                const lastSpecialAction = lastAction?.entry.ComplexActionState;
+                if (!lastSpecialAction) {
+                    logWarn("Couldn't find Special Action to complete... Aborting...");
+                    return
+                };
+
+                await ActionManager.completeComplexAction(combatant, lastAction.entry);
+                // Note: Your complete() should likely trigger a re-render of this UI
+                return;
+            }
+        }
+
+        // Handle Add Button (existing logic)
+        if (btn.classList.contains('add-button')) {
             if (combatant) return this._showManualActionDialog(combatant);
         }
 
@@ -461,6 +515,7 @@ export class CombatUIManager {
      */
     private static async _handleIconContextMenu(target: HTMLElement) {
         const msgId = target.dataset.msgId;
+
         const index = parseInt(target.dataset.index || "-1");
         const combatantId = (target.closest('.pf2e-auto-action-tracker-container')?.parentElement as HTMLElement)?.closest('[data-combatant-id]')?.getAttribute('data-combatant-id');
         const combatant = (game.combat as any)?.combatants.get(combatantId || "") as any | undefined;
@@ -479,7 +534,9 @@ export class CombatUIManager {
             return ui.notifications.warn("Only GMs can undo system-drains.");
         }
 
+        if (!msgId) return;
+
         // Call restored undoAction with BOTH msgId and index fallbacks
-        await ActionManager.removeAction(combatant, msgId || "", index);
+        await ActionManager.removeAction(combatant, msgId);
     }
 }

@@ -5,14 +5,25 @@ import { ActorHandler } from "./ActorHandler";
 import { ChatManager } from "./ChatManager";
 import { MovementManager } from "./MovementManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
+import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
+import { ActiveActivityState } from "./complexActions/types";
 
 export interface ActionLogEntry {
-    cost: number,
-    msgId: string,
-    label: string,
+    cost: number;
+    msgId: string;
+    label: string;
     type: 'action' | 'reaction' | 'system' | 'bonus';
-    isQuickenedEligible: boolean
+    slug?: string;
+    isQuickenedEligible: boolean;
     sustainItem?: { id: string, name: string };
+    ComplexActionState?: ActiveActivityState;
+    category: string;
+    linkedMessages: linkedRolls[];
+}
+
+export interface linkedRolls {
+    type: 'damage' | 'attack';
+    msgId: string;
 }
 
 export class ActionManager {
@@ -29,12 +40,31 @@ export class ActionManager {
     }
 
     static getActionById(combatant: CombatantPF2e, msgId: string): ActionLogEntry | undefined {
-        return this._getInternalLog(combatant).find(e => e.msgId === msgId);
+        return this.getFlattenedActions(combatant).find(e => e.msgId === msgId);
     }
 
-    static getLastAction(combatant: CombatantPF2e): ActionLogEntry | undefined {
+    static getLastAction(combatant: CombatantPF2e): { entry: ActionLogEntry, isSubAction: boolean, subAction?: ActionLogEntry, actionLabel?: string } | undefined {
         const logs = this._getInternalLog(combatant);
-        return logs[logs.length - 1];
+        if (!logs || logs.length === 0) return undefined;
+
+        const lastEntry = logs[logs.length - 1];
+
+        // If it's a complex action, check for the most recent child message
+        if (lastEntry.ComplexActionState) {
+            const childActions = ComplexActionEngine.getAllChildActions(lastEntry.ComplexActionState);
+            if (childActions && childActions.length > 0) {
+                const lastChildAction = childActions[childActions.length - 1];
+                const leafLabel = ComplexActionEngine.getLeafLabel(lastEntry.ComplexActionState, lastChildAction.msgId);
+                return {
+                    entry: lastEntry,
+                    isSubAction: true,
+                    subAction: lastChildAction,
+                    actionLabel: leafLabel
+                };
+            }
+        }
+
+        return { entry: lastEntry, isSubAction: false };
     }
 
     /**
@@ -79,7 +109,7 @@ export class ActionManager {
             logConsole(`RAW: Decremented Stunned on ${actor.name} by ${stunnedCost}.`);
         }
 
-        // 4. ATOMIC UPDATE: File everything to the combatant at once [cite: 5, 10, 11]
+        // 4. ATOMIC UPDATE: File everything to the combatant at once
         await c.update({
             [`flags.${SCOPE}.isQuickenedSnapshot`]: isQuickened,
             [`flags.${SCOPE}.log`]: logEntries,
@@ -110,63 +140,247 @@ export class ActionManager {
      * Add a new ActionLogEntry to the action log for the current turn
      */
     static async addAction(combatant: CombatantPF2e, action: ActionLogEntry) {
+        const c = combatant as any;
 
+        if (action.type === 'system') {
+            const currentLog = [...this._getInternalLog(combatant)];
+            currentLog.push(action);
+            await this._updateLogs(combatant, currentLog, false);
+            return;
+        }
+
+        // Sustain enrichment
         if (action.msgId) {
-            const combatantId = (combatant as any).id;
-            const key = `${combatantId}-${action.msgId}`;
-
-            // 1. Check if this specific message has sustain data attached
+            const key = `${c.id}-${action.msgId}`;
             const pendingSustain = this._sustainBuffer.get(key);
             if (pendingSustain) {
                 action.sustainItem = pendingSustain;
-                this._sustainBuffer.delete(key); // Consume the buffer
+                this._sustainBuffer.delete(key);
             }
         }
 
-        // We clone the frozen log into a mutable array to modify it
-        const currentLog = [...this.getActions(combatant)];
-        currentLog.push(action);
+        const currentLog = [...this._getInternalLog(combatant)];
+        const incomingSlug = action.slug || (action.type === 'action' ? 'strike' : action.type);
 
-        // always check overSpend alert on adding actions
+        // 1. Check for OPEN sequences
+        const openEntry = currentLog.find(e => e.ComplexActionState && !e.ComplexActionState.completedBy);
+
+        if (openEntry && openEntry.ComplexActionState) {
+            const result = ComplexActionEngine.evaluate(openEntry.ComplexActionState!, {
+                slug: incomingSlug,
+                action,
+                cost: action.cost,
+                type: action.category
+            },
+                combatant);
+
+            if (result.claimed) {
+                openEntry.ComplexActionState = result.newState;
+                // Use toString() for a clean, dynamic label
+                openEntry.label = ComplexActionEngine.toString(result.newState);
+
+                const overrideCost = ComplexActionEngine.getOverrideCost(result.newState);
+
+                // Only update the entry cost if an override was explicitly found
+                if (overrideCost !== undefined) {
+                    openEntry.cost = overrideCost;
+                }
+
+                await this._updateLogs(combatant, currentLog, false);
+                return;
+            } else if (ComplexActionEngine.canComplete(openEntry.ComplexActionState)) {
+                openEntry.ComplexActionState = ComplexActionEngine.complete(openEntry.ComplexActionState, ComplexActionEngine.getAllChildActions(openEntry.ComplexActionState).reverse()[0].msgId);
+                openEntry.label = ComplexActionEngine.toString(openEntry.ComplexActionState);
+            } else if (action.cost > 0) {
+                // Sequence Broken
+                openEntry.ComplexActionState = ComplexActionEngine.complete(openEntry.ComplexActionState, action.msgId);
+                await ChatManager.triggerAlert(c.actor, "Sequence Broken", `Cancelled ${openEntry.label}.`, 'whisperComplexAction');
+            }
+        }
+
+        // 2. Check for NEW sequence
+        const newSequence = ComplexActionEngine.maybeStart(incomingSlug, action.msgId, (combatant as unknown as Combatant).token);
+        if (newSequence) {
+            action.ComplexActionState = newSequence;
+            action.label = ComplexActionEngine.toString(newSequence);
+        }
+
+        currentLog.push(action);
         await this._updateLogs(combatant, currentLog, false);
     }
 
     /**
-     * Edit an existingActionLogEntry to the action log for the current turn
+     * Edit an existing ActionLogEntry (or sub-action) in the log.
+     * Handles re-evaluation of complex activities if an edit "fixes" a broken sequence.
      */
     static async editAction(combatant: CombatantPF2e, msgId: string, updates: Partial<ActionLogEntry>) {
-        const log = this.getActions(combatant);
-        const index = log.findIndex(e => e.msgId === msgId);
-        // Safety guard - 
-        if (index === -1) return;
+        const currentLog = [...this._getInternalLog(combatant)];
+        const c = combatant as any;
 
-        const newLog = [...log];
-        newLog[index] = { ...newLog[index], ...updates };
+        // 1. Identify the target and potential parent
+        const topLevelIndex = currentLog.findIndex(e => e.msgId === msgId);
+        const parentEntry = currentLog.find(e =>
+            e.ComplexActionState &&
+            ComplexActionEngine.getAllChildMessageIds(e.ComplexActionState).includes(msgId)
+        );
 
-        const isMove = MovementManager.isMoveAction(msgId);
-        // If it's a move, skip economy checks (we don't want to spam alerts while dragging)
-        await this._updateLogs(combatant, newLog, isMove);
+        // 2. CASE A: Editing an action already inside a Special Activity
+        if (parentEntry && parentEntry.ComplexActionState) {
+            const oldState = parentEntry.ComplexActionState;
+            const newState = ComplexActionEngine.edit(oldState, msgId, updates, combatant);
+
+            const oldLeaf = ComplexActionEngine.findLeafByMessageId(oldState, msgId);
+            const newLeaf = ComplexActionEngine.findLeafByMessageId(newState, msgId);
+            const subAction = newLeaf?.childActions.find(a => a.msgId === msgId);
+
+            // If the edit makes a previously valid action invalid, eject it
+            if (newLeaf && subAction && !newLeaf.satisfied && oldLeaf?.satisfied) {
+                parentEntry.ComplexActionState = ComplexActionEngine.remove(oldState, msgId);
+
+                // Mark as broken by this specific message ID
+                parentEntry.ComplexActionState = ComplexActionEngine.complete(parentEntry.ComplexActionState, msgId);
+                parentEntry.label = ComplexActionEngine.toString(parentEntry.ComplexActionState);
+
+                // Promote the edited action to the top-level log
+                currentLog.push({ ...subAction, ...updates });
+
+                await ChatManager.triggerAlert(
+                    c.actor,
+                    "Sequence Broken",
+                    `Action limits exceeded for ${parentEntry.slug}. Item separated.`,
+                    'whisperComplexAction'
+                );
+            } else {
+                // Valid edit: just update the internal state
+                parentEntry.ComplexActionState = newState;
+                parentEntry.label = ComplexActionEngine.toString(newState);
+
+                if (newState.completedBy && newState.completedBy === msgId) {
+                    const overrideCost = ComplexActionEngine.getOverrideCost(newState);
+                    if (overrideCost) {
+                        parentEntry.cost = overrideCost;
+                    }
+                }
+            }
+
+            // 3. CASE B: Editing a top-level action (Potential "Redemption" or normal edit)
+        } else if (topLevelIndex !== -1) {
+            const topLevelAction = currentLog[topLevelIndex];
+            const updatedAction = { ...topLevelAction, ...updates };
+
+            // Check if there's a broken/incomplete sequence that should "re-claim" this action
+            const openSequence = currentLog.find(e =>
+                e.ComplexActionState &&
+                (e.ComplexActionState.completedBy === msgId || !e.ComplexActionState.completedBy)
+            );
+
+            if (openSequence && openSequence.msgId !== msgId) {
+                const result = ComplexActionEngine.evaluate(openSequence.ComplexActionState!, {
+                    slug: updatedAction.slug || (updatedAction.category === 'move' ? 'move' : 'strike'),
+                    action: updatedAction,
+                    cost: updatedAction.cost,
+                    type: updatedAction.category
+                },
+                    combatant);
+
+                if (result.claimed) {
+                    openSequence.ComplexActionState = result.newState;
+
+                    // If it was previously broken by this ID, clear the completedBy lock
+                    if (openSequence.ComplexActionState.completedBy === msgId) {
+                        delete openSequence.ComplexActionState.completedBy;
+                    }
+
+                    openSequence.label = ComplexActionEngine.toString(openSequence.ComplexActionState);
+
+                    // Remove the orphaned top-level action
+                    currentLog.splice(topLevelIndex, 1);
+                } else {
+                    // Just a normal top-level edit
+                    currentLog[topLevelIndex] = updatedAction;
+                }
+            } else {
+                // No sequence cares about this, just a normal top-level edit
+                currentLog[topLevelIndex] = updatedAction;
+            }
+        } else {
+            return; // Action not found
+        }
+
+        // 4. Final Sync
+        await this._updateLogs(combatant, currentLog, MovementManager.isMoveAction(msgId));
     }
 
     /**
      * Remove an existing ActionLogEntry from the action log for the current turn
      */
-    static async removeAction(combatant: CombatantPF2e, msgId: string, index?: number): Promise<void> {
-        const currentLog = [...this.getActions(combatant)];
+    static async removeAction(combatant: CombatantPF2e, msgId: string): Promise<void> {
+        const stack = new Error().stack;
+        const currentLog = [...this._getInternalLog(combatant)];
 
-        // 1. Determine the target index
-        let targetIndex = msgId ? currentLog.findIndex(e => e.msgId === msgId) : (index ?? -1);
+        // 1. UNLOCK: If any activity was locked/broken by this specific ID, clear it
+        currentLog.forEach(e => {
+            if (e.ComplexActionState?.completedBy === msgId) {
+                delete e.ComplexActionState.completedBy;
+                e.label = ComplexActionEngine.toString(e.ComplexActionState);
+            }
+        });
 
-        // 2. SAFETY GUARD: If index is invalid, just exit
-        if (targetIndex < 0 || targetIndex >= currentLog.length) return;
+        // 2. SEARCH: Find the parent container or the top-level target
+        const parentEntry = currentLog.find(e =>
+            e.ComplexActionState && ComplexActionEngine.getAllChildMessageIds(e.ComplexActionState).includes(msgId)
+        );
+        const topLevelIndex = currentLog.findIndex(e => e.msgId === msgId);
 
-        // 3. Perform the removal
-        const removedEntry = currentLog.splice(targetIndex, 1)[0];
+        // 3. RESOLVE
+        if (parentEntry && parentEntry.ComplexActionState) {
+            // CASE A: The ID belongs to a CHILD. 
+            // We only remove the child from the engine state. 
+            // The parent entry stays in the log, even if childActions becomes empty.
+            parentEntry.ComplexActionState = ComplexActionEngine.remove(parentEntry.ComplexActionState, msgId);
+            parentEntry.label = ComplexActionEngine.toString(parentEntry.ComplexActionState);
 
-        logConsole([`Undoing: ${removedEntry.label}`]);
+        } else if (topLevelIndex !== -1) {
+            // CASE B: The ID belongs to a TOP-LEVEL entry (could be a Parent or a normal action).
+            // Since it's top-level, we remove the whole entry from the log.
+            currentLog.splice(topLevelIndex, 1);
+        }
 
-        // Pass 'true' to skipEconomyCheck so we don't whisper alerts during an undo
         await this._updateLogs(combatant, currentLog, true);
+    }
+
+    static async completeComplexAction(combatant: CombatantPF2e, action: ActionLogEntry) {
+        const currentLog = [...this._getInternalLog(combatant)];
+        if (!action.ComplexActionState) return;
+
+        const topLevelIndex = currentLog.findIndex(e => e.msgId === action.msgId);
+        if (topLevelIndex === -1) return;
+
+        const topLevelAction = currentLog[topLevelIndex];
+        const newState = ComplexActionEngine.complete(action.ComplexActionState, 'MANUAL COMPLETE');
+
+        const updates: Partial<ActionLogEntry> = {
+            label: ComplexActionEngine.toString(action.ComplexActionState),
+            cost: ComplexActionEngine.getOverrideCost(action.ComplexActionState) ?? topLevelAction.cost,
+            ComplexActionState: newState
+        }
+        const updatedAction = { ...topLevelAction, ...updates };
+        currentLog[topLevelIndex] = updatedAction;
+
+        await this._updateLogs(combatant, currentLog, true);
+    }
+
+
+    static async linkDamageToAttack(combatant: CombatantPF2e, attackMsgId: string | undefined, damageMsgId: string) {
+
+        if (!attackMsgId) return
+
+        const entry = this.getActionById(combatant, attackMsgId);
+
+        if (entry) {
+            const updatedLinkedRolls = entry.linkedMessages.concat({ type: 'damage', msgId: damageMsgId });
+            this.editAction(combatant, attackMsgId, { linkedMessages: updatedLinkedRolls });
+        }
     }
 
     /**
@@ -178,6 +392,19 @@ export class ActionManager {
         await this._updateLogs(combatant, currentLogs, true, itemId);
     }
 
+    static getFlattenedActions(combatant: CombatantPF2e): ActionLogEntry[] {
+        const log = this._getInternalLog(combatant);
+        return log.flatMap(entry => {
+            if (entry.ComplexActionState) {
+                // Return the parent (for metadata) + all children
+                const children = Object.values(entry.ComplexActionState.leaves)
+                    .flatMap(leaf => leaf.childActions);
+                return [entry, ...children];
+            }
+            return [entry];
+        });
+    }
+
     /**
      * Handle filing data to the database and rerendering the combat UI to show the updates
      */
@@ -185,7 +412,8 @@ export class ActionManager {
         combatant: CombatantPF2e,
         newLogs: ActionLogEntry[],
         skipOverspendCheck: boolean,
-        removeSustainId?: string
+        removeSustainId?: string,
+        extraFlags?: Record<string, any>
     ) {
         const c = combatant as any;
         const actionsSpent = newLogs.filter(e => e.type !== 'reaction').reduce((sum, e) => sum + (e.cost || 0), 0);
@@ -199,6 +427,10 @@ export class ActionManager {
             [`flags.${SCOPE}.reactionsSpent`]: reactionsSpent,
             [`flags.${SCOPE}.isQuickenedSnapshot`]: hasQuickenedSnapshot
         };
+
+        if (extraFlags) {
+            Object.assign(updateData, extraFlags);
+        }
 
         // 1. Get the PERSISTENT registry. No round check here!
         // This stays until the user clicks "Let Lapse".
@@ -260,13 +492,13 @@ export class ActionManager {
                 (stunnedVal > 0 && slowedVal > 0) ? `Stunned ${stunnedVal} & Slowed ${slowedVal}` :
                     (stunnedVal > 0 ? `Stunned ${stunnedVal}` : `Slowed ${slowedVal}`);
 
-            logEntries.push({ type: 'system', cost: actionsSpent, msgId: "System", label, isQuickenedEligible: true });
+            logEntries.push({ type: 'system', cost: actionsSpent, msgId: "System", label, isQuickenedEligible: true, category: "system", linkedMessages: [] });
         }
 
         // Reaction Drain
         if (isParalyzed || stunnedVal > 0) {
             reactionsSpent = (actor.system as any).resources?.reactions?.max || 1;
-            logEntries.push({ type: 'reaction', cost: 1, msgId: "System", label: `${isParalyzed ? 'Paralyzed' : 'Stunned'}: Reaction Lost`, isQuickenedEligible: false });
+            logEntries.push({ type: 'reaction', cost: 1, msgId: "System", label: `${isParalyzed ? 'Paralyzed' : 'Stunned'}: Reaction Lost`, isQuickenedEligible: false, category: "system", linkedMessages: [] });
         }
 
         return { logEntries, actionsSpent, reactionsSpent };

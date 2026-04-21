@@ -1,6 +1,7 @@
 export interface IActionDetector {
 
     readonly id: string;
+    readonly type: string;
 
     /**
      * Determines if this message belongs to this type, but should not be counted as an action.  For example, a spell cast has the spell cast

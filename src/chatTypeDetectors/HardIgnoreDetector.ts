@@ -1,8 +1,9 @@
-import { IActionDetector } from "./ActionDetector";
+import { IActionDetector } from "./IActionDetector";
 
 export class HardIgnoreDetector {
 
     static readonly id = "HardIgnoreDetector";
+    static readonly type = "HardIgnore";
 
     static shouldBreak(message: any): boolean {
         const contextType = message.flags?.pf2e?.context?.type;

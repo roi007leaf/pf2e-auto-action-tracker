@@ -1,10 +1,11 @@
-import { IActionDetector } from './ActionDetector';
+import { IActionDetector } from './IActionDetector';
 import { SCOPE } from '../globals';
 import { getLabelFromMsgFlavor, getSlugFromMsgFlavor } from './detectorUtilities';
 
 export class ConsumableDetector {
 
     static readonly id = "ConsumableDetector";
+    static readonly type = "consumable";
 
     /**
       * If it's a consumable/item card but NOT an explicit use, we "break".

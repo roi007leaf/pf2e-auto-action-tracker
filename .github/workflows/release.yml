@@ -5,18 +5,20 @@ on:
     branches:
       - main
     paths:
-      - 'package.json' # The "Release Gate": Only runs when you bump the version
+      - 'package.json'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read # Required for the changelog builder to see PRs
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Crucial: Fetches history so it can see previous commits
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,38 +28,58 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      # 1. Automated Changelog Builder (Builds notes from your merged PRs/Issues)
+      - name: Build Changelog
+        id: github_release
+        uses: mikepenz/release-changelog-builder-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Code
         run: npm run build
 
-      - name: Update Manifest Version and Links
+      - name: Update Manifest
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          jq ".version = \"$VERSION\" | .download = \"https://github.com/soch0601/pf2e-auto-action-tracker/releases/download/v$VERSION/pf2e-auto-action-tracker.zip\"" module.json > temp.json && mv temp.json module.json
+          VER="${{ steps.get_version.outputs.VERSION }}"
+          REPO="${{ github.repository }}"
+          jq ".version = \"$VER\" | 
+              .manifest = \"https://github.com/$REPO/releases/latest/download/module.json\" |
+              .download = \"https://github.com/$REPO/releases/download/v$VER/pf2e-auto-action-tracker.zip\"" \
+              module.json > temp.json && mv temp.json module.json
 
       - name: Create ZIP
         run: |
-          # 1. Create a clean staging directory
-          mkdir pf2e-auto-action-tracker
-          
-          # 2. Copy compiled files FROM dist into the staging root
-          cp -r dist/* pf2e-auto-action-tracker/
-          
-          # 3. Copy the updated manifest and README into the staging root
+          mkdir dist/pf2e-auto-action-tracker
+          # Move everything into the subfolder inside dist
+          mv dist/* pf2e-auto-action-tracker/ || true 
           cp module.json README.md pf2e-auto-action-tracker/
-          
-          # 4. Zip the staging directory
           zip -r pf2e-auto-action-tracker.zip pf2e-auto-action-tracker/
 
+      # 2. Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
-          name: Release v${{ steps.get_version.outputs.VERSION }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          name: v${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.github_release.outputs.changelog }} # Uses the automated notes
           files: |
             module.json
             pf2e-auto-action-tracker.zip
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to FoundryVTT
+        uses: cs96and/FoundryVTT-release-package@v1.0.2
+        if: env.PACKAGE_TOKEN
+        env:
+          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+        with:
+          package-token: ${{ env.PACKAGE_TOKEN }}
+          # Points specifically to the module.json in the NEW release, not /latest/
+          manifest-url: https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/module.json

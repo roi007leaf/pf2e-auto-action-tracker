@@ -1,9 +1,10 @@
-import { IActionDetector } from "./ActionDetector";
+import { IActionDetector } from "./IActionDetector";
 import { getCostFromMsgFlavor, getIsReaction, getLabelFromMsgFlavor, getSlugFromMsgFlavor } from "./detectorUtilities";
 
 export class GenericActionDetector {
 
     static readonly id = "GenericActionDetector";
+    static readonly type = "action"
 
     static shouldBreak() { return false; }
 

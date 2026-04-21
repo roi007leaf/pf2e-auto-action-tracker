@@ -183,3 +183,33 @@ div.form-group[data-setting-id^="pf2e-auto-action-tracker.header"] .notes {
     /* Ensure it sits above other cards slightly */
     transition: all 0.5s ease;
 }
+
+.action-icon.finish-button {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
+    font-size: 14px !important;
+    margin-left: 8px;
+    /* This provides the breathing room from the pips */
+    color: #ceba96;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+/* Success state when ready to finish */
+.action-icon.finish-button:not(.disabled) {
+    color: #4caf50;
+    /* A subtle green to indicate "Ready" */
+    opacity: 0.9;
+}
+
+.action-icon.finish-button:not(.disabled):hover {
+    opacity: 1;
+    color: #81c784;
+    transform: scale(1.2);
+}
+
+/* Re-use the click-target fix from your add-button */
+.action-icon.finish-button i {
+    pointer-events: none;
+}

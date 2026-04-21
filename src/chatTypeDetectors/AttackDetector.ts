@@ -1,9 +1,10 @@
 import { getCostFromMsgFlavor, getIsReaction, getLabelFromMsgFlavor, getSlugFromMsgFlavor } from "./detectorUtilities";
-import { IActionDetector } from "./ActionDetector";
+import { IActionDetector } from "./IActionDetector";
 
 export class AttackDetector {
 
     static readonly id = "AttackDetector";
+    static readonly type = "attack"
 
     static shouldBreak(message: any) {
         // Break if it's just a damage roll for a strike (noise)

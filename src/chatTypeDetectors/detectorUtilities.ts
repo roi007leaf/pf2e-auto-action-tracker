@@ -38,52 +38,50 @@ export function getIsReaction(item: any, pf2eFlags: any, flavor: string): boolea
 }
 
 export function getLabelFromMsgFlavor(htmlString: string): string | undefined {
-    if (!htmlString.includes('action-glyph')) return undefined;
-
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = htmlString;
 
-    // 1. Find the header (Standard h4, Monster h3, or Card Header)
+    // 1. Target the header
     const header = tempDiv.querySelector('h4.action, .card-header h3, h3');
     if (!header) return undefined;
 
-    // 2. Priority: <strong> tag inside the header (Standard PF2e style)
-    // 3. Fallback: The direct text of the header
-    let title = header.querySelector('strong')?.textContent || header.textContent;
+    // 2. CLONE the header so we don't mess with the original DOM if it matters
+    const cleanHeader = header.cloneNode(true) as HTMLElement;
+
+    // 3. REMOVE the glyph span entirely before grabbing text
+    cleanHeader.querySelector('.action-glyph, .pf2-icon')?.remove();
+
+    let title = cleanHeader.querySelector('strong')?.textContent || cleanHeader.textContent;
 
     if (title) {
         return title
-            .replace(/[123FR]/g, '') // Remove action glyph characters
-            .replace(/\s+/g, ' ')    // Collapse all whitespace/newlines
-            .replace(/[()]/g, '')    // Remove parentheses
+            .replace(/\s+/g, ' ') // Collapse whitespace
+            .replace(/[()]/g, '') // Remove parentheses
             .trim();
     }
-
     return undefined;
 }
 
 export function getSlugFromMsgFlavor(htmlString: string): string | undefined {
-    // Check for action or action-glyph classes
-    if (!htmlString.includes('class="action') && !htmlString.includes('action-glyph')) return undefined;
-
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = htmlString;
 
-    // Search for common PF2e header patterns
-    // 1. h4.action strong (Standard)
-    // 2. .card-header h3 (Monster cards)
-    // 3. h3 (Simple cards)
     const header = tempDiv.querySelector('h4.action strong, .card-header h3, h3');
-    const title = header?.textContent;
+    if (!header) return undefined;
+
+    const cleanHeader = header.cloneNode(true) as HTMLElement;
+    // Remove the glyph so it doesn't end up in our slug
+    cleanHeader.querySelector('.action-glyph, .pf2-icon')?.remove();
+
+    const title = cleanHeader.textContent;
 
     if (title) {
         return title
             .toLowerCase()
             .trim()
-            .split(/[123FRR]/)[0] // Remove trailing glyph text if it's inside the header
             .replace(/[()]/g, '')
             .replace(/\s+/g, '-')
-            .replace(/-+$/, ''); // Clean up trailing dashes
+            .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
     }
 
     return undefined;
