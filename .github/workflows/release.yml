@@ -55,9 +55,8 @@ jobs:
 
       - name: Create ZIP
         run: |
-          mkdir dist/pf2e-auto-action-tracker
-          # Move everything into the subfolder inside dist
-          mv dist/* pf2e-auto-action-tracker/ || true 
+          mkdir -p pf2e-auto-action-tracker
+          cp -r dist/* pf2e-auto-action-tracker/
           cp module.json README.md pf2e-auto-action-tracker/
           zip -r pf2e-auto-action-tracker.zip pf2e-auto-action-tracker/
 
