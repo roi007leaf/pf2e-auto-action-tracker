@@ -75,10 +75,9 @@ jobs:
 
       - name: Publish to FoundryVTT
         uses: cs96and/FoundryVTT-release-package@v1.0.2
-        if: env.PACKAGE_TOKEN
+        if: always() && steps.github_release.outcome == 'success' # Only run if the release worked
         env:
           PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
         with:
-          package-token: ${{ env.PACKAGE_TOKEN }}
-          # Points specifically to the module.json in the NEW release, not /latest/
-          manifest-url: https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/module.json
+          package-token: ${{ secrets.PACKAGE_TOKEN }}
+          manifest-url: https://raw.githubusercontent.com/${{ github.repository }}/v${{ steps.get_version.outputs.VERSION }}/module.json
