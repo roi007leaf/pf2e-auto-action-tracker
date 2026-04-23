@@ -131,6 +131,16 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
         CombatUIManager.injectIcons(htmlElement, c);
     });
     CombatUIManager.activateListeners(htmlElement);
+
+    window.setTimeout(() => {
+        const hudTracker = document.getElementById("pf2e-hud-tracker");
+        if (!hudTracker) return;
+
+        data.combat.combatants.forEach((c: any) => {
+            CombatUIManager.injectIcons(hudTracker, c);
+        });
+        CombatUIManager.activateListeners(hudTracker);
+    }, 0);
 });
 
 Hooks.on("renderDamageModifierDialog", async (app: any, html: JQuery) => {

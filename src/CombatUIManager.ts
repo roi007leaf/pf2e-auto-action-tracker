@@ -5,6 +5,12 @@ import { ActorHandler } from "./ActorHandler";
 import { MovementManager } from "./MovementManager";
 import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
 import { logWarn } from "./logger";
+import {
+    canShowManualActionButton,
+    hasCompactOverspendTint,
+    resolveTrackerMount,
+    shouldShowTrackerForMount
+} from "./trackerAdapters";
 
 export class CombatUIManager {
 
@@ -21,10 +27,12 @@ export class CombatUIManager {
 
         const isGM = (game as any).user.isGM;
         const isOwner = actor.isOwner;
+        const mount = resolveTrackerMount(html, c.id, isGM);
+        if (!mount) return;
+        const isCompact = mount.mode === "pf2e-hud";
         const isPC = actor.hasPlayerOwner || (actor as any).type === "character";
 
-        // Block visibility only if it's an NPC that the current player doesn't own
-        if (!isGM && !isOwner && !isPC) return;
+        if (!shouldShowTrackerForMount(mount.mode, isGM, isOwner, isPC)) return;
 
         const log = (c.getFlag(SCOPE, "log") as ActionLogEntry[]) || [];
 
@@ -61,12 +69,15 @@ export class CombatUIManager {
 
         // --- 2. Rendering Setup ---
         const container = document.createElement("div");
-        container.className = "pf2e-auto-action-tracker-container";
+        container.className = `pf2e-auto-action-tracker-container ${isCompact ? 'compact' : 'standard'}`;
+        container.dataset.trackerMode = mount.mode;
         container.addEventListener('click', (e) => e.stopPropagation());
 
         const actionLine = document.createElement("div");
-        actionLine.className = "action-line";
-        actionLine.textContent = "Actions: ";
+        actionLine.className = `action-line ${isCompact ? 'compact' : ''}`.trim();
+        if (!isCompact) {
+            actionLine.textContent = "Actions: ";
+        }
 
         let pipsRendered = 0;
         let overflowCount = 0;
@@ -186,10 +197,20 @@ export class CombatUIManager {
         }
 
         // Render Overspend
-        overspendSlots.forEach(s => renderPip(s.entry, s.index, s.subIndex, false, true));
+        let compactOverspend = false;
+        if (isCompact) {
+            overflowCount += overspendSlots.length;
+            compactOverspend = hasCompactOverspendTint(overflowCount);
+        } else {
+            overspendSlots.forEach(s => renderPip(s.entry, s.index, s.subIndex, false, true));
+        }
 
         // Render Overflow Indicator
-        if (overflowCount > 0) {
+        if (compactOverspend) {
+            actionLine.classList.add("compact-overspent");
+        }
+
+        if (overflowCount > 0 && !isCompact) {
             const overflow = document.createElement("span");
             overflow.className = "action-overflow-count";
             overflow.style.marginLeft = "4px";
@@ -201,7 +222,7 @@ export class CombatUIManager {
         }
 
         // Render Manual override button
-        if (isGM || isOwner) {
+        if (canShowManualActionButton(isGM)) {
             const lastAction = ActionManager.getLastAction(combatant);
             const lastSpecialAction = lastAction?.entry.ComplexActionState;
             const activeSpecialAction = !ComplexActionEngine.isComplete(lastSpecialAction)
@@ -244,8 +265,15 @@ export class CombatUIManager {
         const maxReactions = (actor.system as any).resources?.reactions?.max || 1;
 
         const reactionLine = document.createElement("div");
-        reactionLine.className = "reaction-line";
-        reactionLine.textContent = "Reactions: ";
+        reactionLine.className = `reaction-line ${isCompact ? 'compact' : ''}`.trim();
+        if (!isCompact) {
+            reactionLine.textContent = "Reactions: ";
+        } else {
+            const divider = document.createElement("span");
+            divider.className = "divider compact";
+            divider.textContent = "|";
+            actionLine.appendChild(divider);
+        }
 
         for (let i = 0; i < maxReactions; i++) {
             const entry = reactionLog[i];
@@ -261,25 +289,24 @@ export class CombatUIManager {
                 span.dataset.index = originalIndex.toString();
             }
 
-            reactionLine.appendChild(span);
+            (isCompact ? actionLine : reactionLine).appendChild(span);
         }
-        container.appendChild(reactionLine);
+        if (!isCompact) {
+            container.appendChild(reactionLine);
+        }
 
         // --- 5. DOM Injection ---
-        const combatantRow = html.querySelector(`[data-combatant-id="${c.id}"]`);
-        if (!combatantRow) return;
-
-        const target = combatantRow.querySelector(".token-name, .name-controls");
-        if (target) {
-            target.querySelector(".pf2e-auto-action-tracker-container")?.remove();
-            target.appendChild(container);
-        }
+        mount.target.querySelector(".pf2e-auto-action-tracker-container")?.remove();
+        mount.target.appendChild(container);
     }
 
     /**
      * Activate listeners for our click targets.  Will disable the other click handlers for our specificically added rows
      */
     static activateListeners(html: HTMLElement) {
+        if (html.dataset.pf2eAutoActionTrackerListeners === "true") return;
+        html.dataset.pf2eAutoActionTrackerListeners = "true";
+
         // Capture phase listeners (true) to override Foundry core behavior
         html.addEventListener('click', (event: MouseEvent) => {
             const target = event.target as HTMLElement;
