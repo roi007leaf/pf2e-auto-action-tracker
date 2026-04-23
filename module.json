@@ -1,48 +1,48 @@
 {
-    "id": "pf2e-auto-action-tracker",
-    "title": "PF2E Automated Action Tracker",
-    "socket": true,
-    "esmodules": [
-        "main.js"
-    ],
-    "styles": [
-        "style.css"
-    ],
-    "scripts": [],
-    "description": "Automates tracking of the action economy for Pathfinder 2e.",
-    "manifest": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/latest/download/module.json",
-    "download": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/download/v0.10.0/pf2e-auto-action-tracker.zip",
-    "version": "0.10.0",
-    "authors": [
-        {
-            "name": "Warder",
-            "discord": "warder"
-        }
-    ],
-    "compatibility": {
-        "minimum": "13",
-        "verified": "13",
-        "maximum": "13"
-    },
-    "relationships": {
-        "requires": [
-            {
-                "id": "lib-wrapper",
-                "reason": "Used for reroll rendering and linking old message id to new message id"
-            },
-            {
-                "id": "socketlib",
-                "reason": "Used for cross-client communication between players and the GM."
-            }
-        ],
-        "systems": [
-            {
-                "id": "pf2e",
-                "manifest": "https://github.com/foundryvtt/pf2e/releases/latest/download/system.json",
-                "compatibility": {
-                    "minimum": "6.0.0"
-                }
-            }
-        ]
+  "id": "pf2e-auto-action-tracker",
+  "title": "PF2E Automated Action Tracker",
+  "socket": true,
+  "esmodules": [
+    "main.js"
+  ],
+  "styles": [
+    "style.css"
+  ],
+  "scripts": [],
+  "description": "Automates tracking of the action economy for Pathfinder 2e.",
+  "manifest": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/latest/download/module.json",
+  "download": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/download/v0.10.2/pf2e-auto-action-tracker.zip",
+  "version": "0.10.2",
+  "authors": [
+    {
+      "name": "Warder",
+      "discord": "warder"
     }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "relationships": {
+    "requires": [
+      {
+        "id": "lib-wrapper",
+        "reason": "Used for reroll rendering and linking old message id to new message id"
+      },
+      {
+        "id": "socketlib",
+        "reason": "Used for cross-client communication between players and the GM."
+      }
+    ],
+    "systems": [
+      {
+        "id": "pf2e",
+        "manifest": "https://github.com/foundryvtt/pf2e/releases/latest/download/system.json",
+        "compatibility": {
+          "minimum": "6.0.0"
+        }
+      }
+    ]
+  }
 }
