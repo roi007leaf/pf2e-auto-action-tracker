@@ -7,6 +7,7 @@ import { MovementManager } from "./MovementManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
 import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
 import { ActiveActivityState } from "./complexActions/types";
+import { getCurrentMapState } from "./mapTracker";
 
 export interface ActionLogEntry {
     cost: number;
@@ -15,6 +16,8 @@ export interface ActionLogEntry {
     type: 'action' | 'reaction' | 'system' | 'bonus';
     slug?: string;
     isQuickenedEligible: boolean;
+    isMapRelevant?: boolean;
+    mapProfile?: "standard" | "agile";
     sustainItem?: { id: string, name: string };
     ComplexActionState?: ActiveActivityState;
     category: string;
@@ -268,6 +271,10 @@ export class ActionManager {
             const topLevelAction = currentLog[topLevelIndex];
             const updatedAction = { ...topLevelAction, ...updates };
 
+            if (updatedAction.isMapRelevant === false) {
+                delete updatedAction.mapProfile;
+            }
+
             // Check if there's a broken/incomplete sequence that should "re-claim" this action
             const openSequence = currentLog.find(e =>
                 e.ComplexActionState &&
@@ -397,12 +404,17 @@ export class ActionManager {
         return log.flatMap(entry => {
             if (entry.ComplexActionState) {
                 // Return the parent (for metadata) + all children
-                const children = Object.values(entry.ComplexActionState.leaves)
-                    .flatMap(leaf => leaf.childActions);
+                const children = ComplexActionEngine.getAllChildActions(entry.ComplexActionState);
                 return [entry, ...children];
             }
             return [entry];
         });
+    }
+
+    static getCurrentMAP(
+        combatant: CombatantPF2e
+    ): { penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
+        return getCurrentMapState(this.getFlattenedActions(combatant));
     }
 
     /**

@@ -8,9 +8,11 @@ import { logWarn } from "./logger";
 import {
     canShowManualActionButton,
     hasCompactOverspendTint,
+    resolveMapMountTarget,
     resolveTrackerMount,
     shouldShowTrackerForMount
 } from "./trackerAdapters";
+import { getMapDisplayState } from "./mapTracker";
 
 export class CombatUIManager {
 
@@ -29,6 +31,7 @@ export class CombatUIManager {
         const isOwner = actor.isOwner;
         const mount = resolveTrackerMount(html, c.id, isGM);
         if (!mount) return;
+        const mapMountTarget = resolveMapMountTarget(html, c.id);
         const isCompact = mount.mode === "pf2e-hud";
         const isPC = actor.hasPlayerOwner || (actor as any).type === "character";
 
@@ -78,6 +81,9 @@ export class CombatUIManager {
         if (!isCompact) {
             actionLine.textContent = "Actions: ";
         }
+
+        const currentMAP = ActionManager.getCurrentMAP(combatant);
+        const mapDisplay = getMapDisplayState(currentMAP);
 
         let pipsRendered = 0;
         let overflowCount = 0;
@@ -143,8 +149,13 @@ export class CombatUIManager {
             } else {
                 // Normal behavior for those with permission
                 span.dataset.tooltip = `Used: ${displayLabel}${isGold ? ' (Bonus Action)' : ''}${isOver ? ' (Overspent)' : ''}`;
-                span.dataset.msgId = entry.msgId || '';
-                span.style.cursor = "pointer";
+
+                if (entry.type === "system" || entry.msgId === "System") {
+                    span.style.cursor = "default";
+                } else {
+                    span.dataset.msgId = entry.msgId || '';
+                    span.style.cursor = "pointer";
+                }
             }
 
             span.dataset.icon = iconChar;
@@ -212,6 +223,14 @@ export class CombatUIManager {
             actionLine.classList.add("compact-overspent");
         }
 
+        if (isCompact && mapDisplay.visible && !mapMountTarget) {
+            const mapBadge = document.createElement("span");
+            mapBadge.className = "map-line compact tracker-tooltip";
+            mapBadge.textContent = mapDisplay.compact.text;
+            mapBadge.dataset.tooltip = mapDisplay.compact.tooltip;
+            actionLine.appendChild(mapBadge);
+        }
+
         if (overflowCount > 0 && !isCompact) {
             const overflow = document.createElement("span");
             overflow.className = "action-overflow-count";
@@ -261,6 +280,14 @@ export class CombatUIManager {
 
         container.appendChild(actionLine);
 
+        if (!isCompact && mapDisplay.visible) {
+            const mapLine = document.createElement("div");
+            mapLine.className = "map-line tracker-tooltip";
+            mapLine.textContent = mapDisplay.core.text;
+            mapLine.dataset.tooltip = mapDisplay.core.tooltip;
+            container.appendChild(mapLine);
+        }
+
         // --- 4. Reactions Line ---
         const fullLog = ActionManager.getActions(combatant); // Get the original full log
         const reactionLog = fullLog.filter(e => e.type === 'reaction');
@@ -300,6 +327,23 @@ export class CombatUIManager {
         // --- 5. DOM Injection ---
         mount.target.querySelector(".pf2e-auto-action-tracker-container")?.remove();
         mount.target.appendChild(container);
+
+        if (mapMountTarget) {
+            mapMountTarget.querySelector(".pf2e-auto-action-tracker-map-container")?.remove();
+
+            if (mapDisplay.visible) {
+                const mapContainer = document.createElement("div");
+                mapContainer.className = "pf2e-auto-action-tracker-map-container";
+
+                const mapBadge = document.createElement("span");
+                mapBadge.className = "map-line compact tracker-tooltip";
+                mapBadge.textContent = mapDisplay.compact.text;
+                mapBadge.dataset.tooltip = mapDisplay.compact.tooltip;
+
+                mapContainer.appendChild(mapBadge);
+                mapMountTarget.appendChild(mapContainer);
+            }
+        }
     }
 
     /**

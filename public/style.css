@@ -34,8 +34,18 @@
     display: none;
 }
 
+#pf2e-hud-tracker .controls.alt .pf2e-auto-action-tracker-map-container {
+    display: none;
+}
+
 #pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-container {
     display: inline-flex;
+}
+
+#pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-map-container {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 3px;
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line {
@@ -94,6 +104,36 @@
     font-family: "Signika", sans-serif;
     font-weight: bold;
     line-height: 1.2;
+}
+
+.map-line {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 16px;
+    font-size: 10px;
+    line-height: 1;
+    color: #c9b37a;
+    font-weight: 700;
+    font-family: "Signika", sans-serif;
+}
+
+.map-line.tracker-tooltip {
+    pointer-events: auto;
+}
+
+#pf2e-hud-tracker .map-line.compact {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+    padding: 0 2px;
+    min-width: 1.4em;
+    font-size: 8px;
+    color: #ffcf70;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 2px;
+    white-space: nowrap;
 }
 
 /* Base Icon Styles */

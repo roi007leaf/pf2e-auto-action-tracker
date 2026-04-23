@@ -6,6 +6,7 @@ import { ActorHandler } from "./ActorHandler";
 import { SocketsManager } from "./SocketManager";
 import { logConsole } from "./logger"
 import * as Detectors from "./chatTypeDetectors";
+import type { IActionDetails } from "./chatTypeDetectors/IActionDetector";
 
 // Use a Template Literal Type for clarity, or just string
 type CombatantId = string;
@@ -194,11 +195,23 @@ export class ChatManager {
         // Check if we are updating an existing message or logging a new one
         const log = ActionManager.getActionById(combatant, message.id);
 
+        const mapMetadata: Pick<ActionLogEntry, "isMapRelevant" | "mapProfile"> =
+            data.isMapRelevant
+                ? {
+                    isMapRelevant: true,
+                    mapProfile: data.mapProfile ?? "standard"
+                }
+                : {
+                    isMapRelevant: false,
+                    mapProfile: undefined
+                };
+
         if (log) {
             const update: Partial<ActionLogEntry> = {
                 cost: data.cost,
                 label: data.label,
-                isQuickenedEligible
+                isQuickenedEligible,
+                ...mapMetadata
             };
             await ActionManager.editAction(combatant, message.id, update);
         } else {
@@ -214,6 +227,7 @@ export class ChatManager {
                 type: type,
                 slug: data.slug,
                 isQuickenedEligible,
+                ...mapMetadata,
                 category: data.category,
                 linkedMessages: []
             });
@@ -462,7 +476,15 @@ export class ChatManager {
         }
     }
 
-    private static runMessageDetectors(message: any): { cost: number, slug: string, label: string, isReaction: boolean, category: string } | undefined {
+    private static runMessageDetectors(message: any): {
+        cost: number,
+        slug: string,
+        label: string,
+        isReaction: boolean,
+        category: string,
+        isMapRelevant?: boolean,
+        mapProfile?: "standard" | "agile"
+    } | undefined {
         const activeDetectors = [
             Detectors.HardIgnoreDetector,
             Detectors.SustainDetector,
@@ -481,13 +503,21 @@ export class ChatManager {
 
             // 2. If this detector recognizes the message, parse it and stop
             if (Detector.isType(message)) {
-                const details = Detector.getDetails(message);
+                const details: IActionDetails = Detector.getDetails(message);
 
                 // Handle Whisper/Secret logic here globally
                 const isPublic = message.whisper.length === 0 || message.whisper.includes(game.user.id);
                 const finalLabel = isPublic ? details.label : "Secret Action";
 
-                return { cost: details.cost, slug: details.slug, label: finalLabel, isReaction: details.isReaction, category: Detector.type };
+                return {
+                    cost: details.cost ?? 0,
+                    slug: details.slug ?? "",
+                    label: finalLabel ?? "",
+                    isReaction: details.isReaction,
+                    category: Detector.type,
+                    isMapRelevant: details.isMapRelevant,
+                    mapProfile: details.mapProfile
+                };
             }
         }
 

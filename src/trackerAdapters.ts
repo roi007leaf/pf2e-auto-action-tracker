@@ -26,6 +26,15 @@ export function resolveTrackerMount(root: QueryableNode, combatantId: string, hu
     return { mode, row, target };
 }
 
+export function resolveMapMountTarget(root: QueryableNode, combatantId: string): any | null {
+    if (root.id !== "pf2e-hud-tracker") return null;
+
+    const row = root.querySelector(`[data-combatant-id="${combatantId}"]`);
+    if (!row) return null;
+
+    return row.querySelector(".controls.alt");
+}
+
 export function shouldShowTrackerForMount(
     mode: TrackerMountMode,
     isGM: boolean,

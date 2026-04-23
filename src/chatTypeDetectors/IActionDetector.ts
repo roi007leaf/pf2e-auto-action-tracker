@@ -1,3 +1,12 @@
+export interface IActionDetails {
+    cost: number | null,
+    slug: string | null,
+    label: string | null,
+    isReaction: boolean,
+    isMapRelevant?: boolean,
+    mapProfile?: "standard" | "agile"
+}
+
 export interface IActionDetector {
 
     readonly id: string;
@@ -18,5 +27,5 @@ export interface IActionDetector {
     /**
      * Get the pertinent details for this implementation type
      */
-    getDetails(message: any): { cost: number | null, slug: string | null, label: string | null, isReaction: boolean };
+    getDetails(message: any): IActionDetails;
 }

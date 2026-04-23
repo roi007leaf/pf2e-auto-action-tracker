@@ -1,5 +1,5 @@
 import { getCostFromMsgFlavor, getIsReaction, getLabelFromMsgFlavor, getSlugFromMsgFlavor } from "./detectorUtilities";
-import { IActionDetector } from "./IActionDetector";
+import { IActionDetector, IActionDetails } from "./IActionDetector";
 
 export class AttackDetector {
 
@@ -17,17 +17,20 @@ export class AttackDetector {
         return context?.type === 'attack-roll' || !!context?.action;
     }
 
-    static getDetails(message: any) {
+    static getDetails(message: any): IActionDetails {
         const flags = message.flags?.pf2e || {};
         const htmlPool = `${message.flavor || ""} ${message.content || ""}`.trim();
         const isReaction = getIsReaction(message.item, message.flags?.pf2e, htmlPool);
         const cost = getCostFromMsgFlavor(message.flavor);
+        const mapProfile: IActionDetails["mapProfile"] = message.item?.traits?.has?.("agile") ? "agile" : "standard";
 
         return {
             cost: isReaction ? 0 : (cost !== undefined ? cost : 1),
             slug: flags.context?.action || getSlugFromMsgFlavor(htmlPool) || "attack",
             label: flags.context?.title || message.item?.name || getLabelFromMsgFlavor(htmlPool) || "Attack",
-            isReaction
+            isReaction,
+            isMapRelevant: true,
+            mapProfile
         };
     }
 }

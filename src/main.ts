@@ -9,7 +9,7 @@ import { SocketsManager } from "./SocketManager";
 import { ChatMessagePF2e, CombatantPF2e, EncounterPF2e } from "module-helpers"
 import { logConsole } from "./logger";
 import { SCOPE, recentIntent } from "./globals";
-import { hasEconomyRelevantActorUpdate, isEconomyConditionSlug } from "./economySync";
+import { hasEconomyRelevantActorUpdate, isEconomyConditionSlug, shouldRefreshEconomyImmediatelyForActor, shouldRefreshEconomyImmediatelyForCondition } from "./economySync";
 
 // Initialization
 Hooks.once("init", () => {
@@ -241,21 +241,24 @@ async function refreshCombatantEconomyForActor(actor: any) {
 }
 
 Hooks.on("updateActor", async (actor: any, updateData: any) => {
-    if (!hasEconomyRelevantActorUpdate(updateData)) return;
+    if (!shouldRefreshEconomyImmediatelyForActor(actor, updateData)) return;
     await refreshCombatantEconomyForActor(actor);
 });
 
 Hooks.on("createItem", async (item: any) => {
     if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
     await refreshCombatantEconomyForActor(item.parent);
 });
 
 Hooks.on("updateItem", async (item: any) => {
     if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
     await refreshCombatantEconomyForActor(item.parent);
 });
 
 Hooks.on("deleteItem", async (item: any) => {
     if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
     await refreshCombatantEconomyForActor(item.parent);
 });
