@@ -46,8 +46,8 @@ export class ActorHandler {
     /**
      * Calculates max actions for the turn for the player
      */
-    static getMaxActions(combatant: CombatantPF2e): number {
-        const isQuickened = this.hasQuickenedSnapshot(combatant);
+    static getMaxActions(combatant: CombatantPF2e, quickenedOverride?: boolean): number {
+        const isQuickened = quickenedOverride ?? this.hasQuickenedSnapshot(combatant);
         return isQuickened ? 4 : 3;
     }
 

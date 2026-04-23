@@ -9,6 +9,7 @@ import { SocketsManager } from "./SocketManager";
 import { ChatMessagePF2e, CombatantPF2e, EncounterPF2e } from "module-helpers"
 import { logConsole } from "./logger";
 import { SCOPE, recentIntent } from "./globals";
+import { hasEconomyRelevantActorUpdate, isEconomyConditionSlug } from "./economySync";
 
 // Initialization
 Hooks.once("init", () => {
@@ -221,4 +222,40 @@ Hooks.on("updateToken", (tokenDoc: any, update: any) => {
 
     // Delegate everything to MovementManager
     MovementManager.handleTokenUpdate(tokenDoc, update);
+});
+
+async function refreshCombatantEconomyForActor(actor: any) {
+    if (game.user?.id !== game.users?.activeGM?.id) return;
+
+    const combat = game.combat;
+    if (!combat?.active || !actor?.id) return;
+
+    const combatants = combat.combatants.filter((c: any) => c.actor?.id === actor.id);
+    if (combatants.length === 0) return;
+
+    for (const combatant of combatants) {
+        await ActionManager.refreshEconomyFromConditions(combatant);
+    }
+
+    (ui as any).combat?.render();
+}
+
+Hooks.on("updateActor", async (actor: any, updateData: any) => {
+    if (!hasEconomyRelevantActorUpdate(updateData)) return;
+    await refreshCombatantEconomyForActor(actor);
+});
+
+Hooks.on("createItem", async (item: any) => {
+    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    await refreshCombatantEconomyForActor(item.parent);
+});
+
+Hooks.on("updateItem", async (item: any) => {
+    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    await refreshCombatantEconomyForActor(item.parent);
+});
+
+Hooks.on("deleteItem", async (item: any) => {
+    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
+    await refreshCombatantEconomyForActor(item.parent);
 });

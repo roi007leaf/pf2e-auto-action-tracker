@@ -473,12 +473,12 @@ export class ActionManager {
     /**
      * Determine how many actions / reactions to drain from slows/starts, and logs the system action accordingly
      */
-    private static calculateStartOfTurnDrains(combatant: CombatantPF2e) {
+    private static calculateStartOfTurnDrains(combatant: CombatantPF2e, quickenedOverride?: boolean) {
         const actor = (combatant as any).actor!;
         const stunnedVal = ActorHandler.getConditionValue(actor, "stunned");
         const slowedVal = ActorHandler.getConditionValue(actor, "slowed");
         const isParalyzed = actor.hasCondition("paralyzed");
-        const maxActions = ActorHandler.getMaxActions(combatant);
+        const maxActions = ActorHandler.getMaxActions(combatant, quickenedOverride);
 
         const logEntries: ActionLogEntry[] = [];
         let actionsSpent = 0;
@@ -502,6 +502,23 @@ export class ActionManager {
         }
 
         return { logEntries, actionsSpent, reactionsSpent };
+    }
+
+    static async refreshEconomyFromConditions(combatant: CombatantPF2e) {
+        const c = combatant as any;
+        const actor = c.actor as ActorPF2e | undefined;
+        if (!actor) return;
+
+        const isQuickened = ActorHandler.getQuickenedState(combatant);
+        await c.update({
+            [`flags.${SCOPE}.isQuickenedSnapshot`]: isQuickened
+        });
+
+        const { logEntries } = this.calculateStartOfTurnDrains(combatant, isQuickened);
+        const currentLog = [...this._getInternalLog(combatant)];
+        const mergedLog = [...logEntries, ...currentLog.filter(entry => entry.type !== "system")];
+
+        await this._updateLogs(combatant, mergedLog, false);
     }
 
     /**

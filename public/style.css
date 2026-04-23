@@ -21,9 +21,9 @@
     align-items: center;
     gap: 0;
     width: auto;
-    max-width: calc(100% - 8em);
+    max-width: calc(100% - 8.75em);
     margin-left: 3px;
-    margin-right: 10px;
+    margin-right: 12px;
     margin-top: 0;
     padding-bottom: 0;
     vertical-align: middle;
@@ -41,7 +41,7 @@
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line {
     display: inline-flex;
     flex-wrap: nowrap;
-    gap: 1px;
+    gap: 0;
     height: auto;
     font-size: 9px;
     line-height: 1;
@@ -67,13 +67,17 @@
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.add-button,
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.finish-button {
     font-size: 10px !important;
-    margin-left: 2px;
+    margin-left: 1px;
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .divider {
     margin: 0 1px;
     width: 3px;
     font-size: 12px;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.quickened {
+    margin-right: 1px;
 }
 
 /* Individual Rows */

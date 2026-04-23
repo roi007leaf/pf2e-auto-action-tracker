@@ -174,10 +174,12 @@ export class CombatUIManager {
                 span.textContent = "A";
                 actionLine.appendChild(span);
             }
-            const divider = document.createElement("span");
-            divider.className = "divider";
-            divider.textContent = "|";
-            actionLine.appendChild(divider);
+            if (!isCompact) {
+                const divider = document.createElement("span");
+                divider.className = "divider";
+                divider.textContent = "|";
+                actionLine.appendChild(divider);
+            }
         }
 
         // Render Standard (Spent)

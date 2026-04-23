@@ -50,6 +50,10 @@ const {
     resolveTrackerMount,
     shouldShowTrackerForMount,
 } = await import("../src/trackerAdapters.ts");
+const {
+    hasEconomyRelevantActorUpdate,
+    isEconomyConditionSlug,
+} = await import("../src/economySync.ts");
 
 const hudPlayerMount = resolveTrackerMount(hudRoot, "c1", false);
 assert.equal(hudPlayerMount?.mode, "pf2e-hud");
@@ -73,3 +77,10 @@ assert.equal(canShowManualActionButton(false), false);
 
 assert.equal(hasCompactOverspendTint(0), false);
 assert.equal(hasCompactOverspendTint(2), true);
+
+assert.equal(isEconomyConditionSlug("quickened"), true);
+assert.equal(isEconomyConditionSlug("stunned"), true);
+assert.equal(isEconomyConditionSlug("frightened"), false);
+
+assert.equal(hasEconomyRelevantActorUpdate({ system: { resources: { reactions: { max: 2 } } } }), true);
+assert.equal(hasEconomyRelevantActorUpdate({ system: { resources: { reactions: { value: 0 } } } }), false);
