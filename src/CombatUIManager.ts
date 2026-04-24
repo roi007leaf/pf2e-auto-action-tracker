@@ -7,12 +7,23 @@ import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
 import { logWarn } from "./logger";
 import {
     canShowManualActionButton,
+    getTrackerRenderKey,
     hasCompactOverspendTint,
     resolveMapMountTarget,
     resolveTrackerMount,
     shouldShowTrackerForMount
 } from "./trackerAdapters";
 import { getMapDisplayState } from "./mapTracker";
+
+function canReuseTrackerRender(
+    existingRenderKey: string | undefined,
+    renderKey: string,
+    hasMapMountTarget: boolean,
+    mapVisible: boolean,
+    existingMapRenderKey?: string
+): boolean {
+    return existingRenderKey === renderKey && (!hasMapMountTarget || !mapVisible || existingMapRenderKey === renderKey);
+}
 
 export class CombatUIManager {
 
@@ -29,7 +40,7 @@ export class CombatUIManager {
 
         const isGM = (game as any).user.isGM;
         const isOwner = actor.isOwner;
-        const mount = resolveTrackerMount(html, c.id, isGM);
+        const mount = resolveTrackerMount(html, c.id);
         if (!mount) return;
         const mapMountTarget = resolveMapMountTarget(html, c.id);
         const isCompact = mount.mode === "pf2e-hud";
@@ -38,8 +49,36 @@ export class CombatUIManager {
         if (!shouldShowTrackerForMount(mount.mode, isGM, isOwner, isPC)) return;
 
         const log = (c.getFlag(SCOPE, "log") as ActionLogEntry[]) || [];
+        const flattenedLog = ActionManager.getFlattenedActions(combatant);
 
         const isQuickened = ActorHandler.hasQuickenedSnapshot(combatant);
+        const currentMAP = ActionManager.getCurrentMAP(combatant);
+        const mapDisplay = getMapDisplayState(currentMAP);
+        const maxReactions = (actor.system as any).resources?.reactions?.max || 1;
+        const renderKeyLog = flattenedLog.map(entry => {
+            const message = game.messages.get(entry.msgId || "");
+            const visibilityKey = message
+                ? `${message.visible ? 1 : 0}:${message.blind ? 1 : 0}:${message.whisper.join(",")}:${message.author?.id ?? ""}`
+                : "";
+            return { ...entry, visibilityKey };
+        });
+        const renderKey = getTrackerRenderKey({
+            mode: mount.mode,
+            combatantId: c.id,
+            isGM,
+            isOwner,
+            isPC,
+            isQuickened,
+            mapAttackCount: currentMAP.attackCount,
+            maxReactions,
+            log: renderKeyLog,
+        });
+        const existingContainer = mount.target.querySelector(".pf2e-auto-action-tracker-container") as HTMLElement | null;
+        const existingMapContainer = mapMountTarget?.querySelector(".pf2e-auto-action-tracker-map-container") as HTMLElement | null;
+        if (isCompact && canReuseTrackerRender(existingContainer?.dataset.renderKey, renderKey, !!mapMountTarget, mapDisplay.visible, existingMapContainer?.dataset.renderKey)) {
+            return;
+        }
+
         const maxStandardActions = 3;
         const charMap: Record<string, string> = { "1": "A", "2": "D", "3": "T" };
 
@@ -74,6 +113,7 @@ export class CombatUIManager {
         const container = document.createElement("div");
         container.className = `pf2e-auto-action-tracker-container ${isCompact ? 'compact' : 'standard'}`;
         container.dataset.trackerMode = mount.mode;
+        container.dataset.renderKey = renderKey;
         container.addEventListener('click', (e) => e.stopPropagation());
 
         const actionLine = document.createElement("div");
@@ -81,9 +121,6 @@ export class CombatUIManager {
         if (!isCompact) {
             actionLine.textContent = "Actions: ";
         }
-
-        const currentMAP = ActionManager.getCurrentMAP(combatant);
-        const mapDisplay = getMapDisplayState(currentMAP);
 
         let pipsRendered = 0;
         let overflowCount = 0;
@@ -243,7 +280,7 @@ export class CombatUIManager {
         }
 
         // Render Manual override button
-        if (canShowManualActionButton(isGM)) {
+        if (canShowManualActionButton(isGM, isOwner)) {
             const lastAction = ActionManager.getLastAction(combatant);
             const lastSpecialAction = lastAction?.entry.ComplexActionState;
             const activeSpecialAction = !ComplexActionEngine.isComplete(lastSpecialAction)
@@ -291,7 +328,6 @@ export class CombatUIManager {
         // --- 4. Reactions Line ---
         const fullLog = ActionManager.getActions(combatant); // Get the original full log
         const reactionLog = fullLog.filter(e => e.type === 'reaction');
-        const maxReactions = (actor.system as any).resources?.reactions?.max || 1;
 
         const reactionLine = document.createElement("div");
         reactionLine.className = `reaction-line ${isCompact ? 'compact' : ''}`.trim();
@@ -325,15 +361,21 @@ export class CombatUIManager {
         }
 
         // --- 5. DOM Injection ---
-        mount.target.querySelector(".pf2e-auto-action-tracker-container")?.remove();
-        mount.target.appendChild(container);
+        if (isCompact && existingContainer) {
+            existingContainer.className = container.className;
+            existingContainer.dataset.trackerMode = container.dataset.trackerMode;
+            existingContainer.dataset.renderKey = renderKey;
+            existingContainer.replaceChildren(...Array.from(container.childNodes));
+        } else {
+            existingContainer?.remove();
+            mount.target.appendChild(container);
+        }
 
         if (mapMountTarget) {
-            mapMountTarget.querySelector(".pf2e-auto-action-tracker-map-container")?.remove();
-
             if (mapDisplay.visible) {
                 const mapContainer = document.createElement("div");
                 mapContainer.className = "pf2e-auto-action-tracker-map-container";
+                mapContainer.dataset.renderKey = renderKey;
 
                 const mapBadge = document.createElement("span");
                 mapBadge.className = "map-line compact tracker-tooltip";
@@ -341,7 +383,15 @@ export class CombatUIManager {
                 mapBadge.dataset.tooltip = mapDisplay.compact.tooltip;
 
                 mapContainer.appendChild(mapBadge);
-                mapMountTarget.appendChild(mapContainer);
+                if (existingMapContainer) {
+                    existingMapContainer.className = mapContainer.className;
+                    existingMapContainer.dataset.renderKey = renderKey;
+                    existingMapContainer.replaceChildren(...Array.from(mapContainer.childNodes));
+                } else {
+                    mapMountTarget.appendChild(mapContainer);
+                }
+            } else {
+                existingMapContainer?.remove();
             }
         }
     }

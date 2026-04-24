@@ -6,7 +6,7 @@ import { ChatManager } from "./ChatManager";
 import { MovementManager } from "./MovementManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
 import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
-import { ActiveActivityState } from "./complexActions/types";
+import type { ActiveActivityState, ActionModifier } from "./complexActions/types";
 import { getCurrentMapState } from "./mapTracker";
 
 export interface ActionLogEntry {
@@ -18,6 +18,7 @@ export interface ActionLogEntry {
     isQuickenedEligible: boolean;
     isMapRelevant?: boolean;
     mapProfile?: "standard" | "agile";
+    actionModifiers?: ActionModifier[];
     sustainItem?: { id: string, name: string };
     ComplexActionState?: ActiveActivityState;
     category: string;
@@ -271,10 +272,6 @@ export class ActionManager {
             const topLevelAction = currentLog[topLevelIndex];
             const updatedAction = { ...topLevelAction, ...updates };
 
-            if (updatedAction.isMapRelevant === false) {
-                delete updatedAction.mapProfile;
-            }
-
             // Check if there's a broken/incomplete sequence that should "re-claim" this action
             const openSequence = currentLog.find(e =>
                 e.ComplexActionState &&
@@ -413,7 +410,7 @@ export class ActionManager {
 
     static getCurrentMAP(
         combatant: CombatantPF2e
-    ): { penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
+    ): { attackCount: number, penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
         return getCurrentMapState(this.getFlattenedActions(combatant));
     }
 

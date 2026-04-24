@@ -13,6 +13,8 @@ export class MovementManager {
     private static _processingQueue = new Map<string, Promise<void>>();
     // Synchronous local storage for history length to prevent race conditions
     private static _historyLengths = new Map<string, number>();
+    private static _lastTokenPositions = new Map<string, { x: number, y: number, elevation: number }>();
+    private static _movementPaths = new Map<string, { x: number, y: number, elevation: number }[]>();
     /**
      * Checks if a specific msgId belongs to a movement action
      */
@@ -21,7 +23,7 @@ export class MovementManager {
     }
 
     static async handleTokenUpdate(tokenDoc: any, update: any) {
-        const combatant = tokenDoc.combatant;
+        const combatant = MovementManager.resolveCombatant(tokenDoc);
         if (!combatant) return;
 
         // Use tokenDoc.id as the primary key for physical movement history
@@ -29,8 +31,7 @@ export class MovementManager {
         const existingPromise = MovementManager._processingQueue.get(tokenId) || Promise.resolve();
 
         const newPromise = existingPromise.then(async () => {
-            const history = tokenDoc._movementHistory || [];
-            const coordList = history.map((p: any) => ({ x: p.x, y: p.y, elevation: p.elevation ?? 0 }));
+            const coordList = MovementManager.getMovementCoordinates(tokenDoc, update);
             try {
                 await MovementManager._processMovement(combatant, tokenDoc, coordList, false);
             } catch (err) {
@@ -39,6 +40,16 @@ export class MovementManager {
         });
 
         MovementManager._processingQueue.set(tokenId, newPromise);
+    }
+
+    static captureTokenPosition(tokenDoc: any, update: any) {
+        if (!tokenDoc?.id || !("x" in update || "y" in update || "elevation" in update)) return;
+
+        MovementManager._lastTokenPositions.set(tokenDoc.id, {
+            x: tokenDoc.x,
+            y: tokenDoc.y,
+            elevation: tokenDoc.elevation ?? 0
+        });
     }
 
     /**
@@ -114,7 +125,7 @@ export class MovementManager {
         // Jitter/GM Drag Checks
         if (distance === 0 || distance > 200) return;
 
-        const movementMode = tokenDoc.movementAction === "walk" ? "stride" : tokenDoc.movementAction;
+        const movementMode = tokenDoc.movementAction === "walk" ? "stride" : (tokenDoc.movementAction || "stride");
         const activeSpeed = ActorHandler.getActiveSpeed(actor, movementMode);
         const isDifficult = MovementManager.checkDifficultTerrain(tokenDoc.object, coordList);
 
@@ -202,6 +213,7 @@ export class MovementManager {
             safety++;
         }
         MovementManager._historyLengths.delete(tokenDoc.id);
+        MovementManager._movementPaths.delete(tokenDoc.id);
     }
 
     static getMovementLabel(distance: number, cost: number, mode: string, isDifficult: boolean) {
@@ -225,10 +237,50 @@ export class MovementManager {
 
     private static storeMovement(tokenDoc: any, coordList: any[]) {
         MovementManager._historyLengths.set(tokenDoc.id, coordList.length);
+        MovementManager._movementPaths.set(tokenDoc.id, coordList);
     }
 
     private static isUndoMovement(tokenDoc: any, coordList: any[]): boolean {
         const lastLength = MovementManager._historyLengths.get(tokenDoc.id) || 0;
         return coordList.length < lastLength;
+    }
+
+    private static getMovementCoordinates(tokenDoc: any, update: any): { x: number, y: number, elevation: number }[] {
+        const history = tokenDoc._movementHistory || [];
+        if (history.length > 0) {
+            return history.map((p: any) => ({ x: p.x, y: p.y, elevation: p.elevation ?? 0 }));
+        }
+
+        const previous = MovementManager._lastTokenPositions.get(tokenDoc.id);
+        if (!previous || !("x" in update || "y" in update || "elevation" in update)) return [];
+
+        const current = {
+            x: update.x ?? tokenDoc.x,
+            y: update.y ?? tokenDoc.y,
+            elevation: update.elevation ?? tokenDoc.elevation ?? 0
+        };
+
+        if (previous.x === current.x && previous.y === current.y && previous.elevation === current.elevation) return [];
+
+        const existingPath = MovementManager._movementPaths.get(tokenDoc.id) ?? [previous];
+        const lastPoint = existingPath[existingPath.length - 1];
+        if (lastPoint && lastPoint.x === current.x && lastPoint.y === current.y && lastPoint.elevation === current.elevation) {
+            return existingPath;
+        }
+
+        return [...existingPath, current];
+    }
+
+    private static resolveCombatant(tokenDoc: any): CombatantPF2e | undefined {
+        if (tokenDoc.combatant) return tokenDoc.combatant;
+
+        const combat = (game as any).combat;
+        if (!combat?.active) return undefined;
+
+        return combat.combatants.find((c: any) =>
+            c.tokenId === tokenDoc.id ||
+            c.token?.id === tokenDoc.id ||
+            c.actorId === tokenDoc.actorId
+        );
     }
 }

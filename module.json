@@ -2,17 +2,13 @@
   "id": "pf2e-auto-action-tracker",
   "title": "PF2E Automated Action Tracker",
   "socket": true,
-  "esmodules": [
-    "main.js"
-  ],
-  "styles": [
-    "style.css"
-  ],
+  "esmodules": ["main.js"],
+  "styles": ["style.css"],
   "scripts": [],
   "description": "Automates tracking of the action economy for Pathfinder 2e.",
   "manifest": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/latest/download/module.json",
   "download": "https://github.com/soch0601/pf2e-auto-action-tracker/releases/download/v0.10.3/pf2e-auto-action-tracker.zip",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "authors": [
     {
       "name": "Warder",

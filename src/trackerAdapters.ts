@@ -1,7 +1,21 @@
 export type TrackerMountMode = "core" | "pf2e-hud";
+export const PF2E_HUD_TRACKER_ID = "pf2e-hud-tracker";
+
+type RenderKeyEntry = {
+    msgId?: string;
+    type?: string;
+    cost?: number;
+    label?: string;
+    isQuickenedEligible?: boolean;
+    isMapRelevant?: boolean;
+    mapProfile?: "standard" | "agile";
+    actionModifiers?: string[];
+    visibilityKey?: string;
+};
 
 type QueryableNode = {
     id?: string;
+    classList?: { contains(className: string): boolean };
     querySelector(selector: string): any;
 };
 
@@ -11,11 +25,19 @@ type TrackerMount = {
     target: any;
 };
 
-export function resolveTrackerMount(root: QueryableNode, combatantId: string, hudAlternateControls = true): TrackerMount | null {
+export function isPf2eHudTracker(root: QueryableNode): boolean {
+    return root.id === PF2E_HUD_TRACKER_ID;
+}
+
+export function findPf2eHudTracker(root: Pick<Document, "getElementById">): HTMLElement | null {
+    return root.getElementById(PF2E_HUD_TRACKER_ID);
+}
+
+export function resolveTrackerMount(root: QueryableNode, combatantId: string): TrackerMount | null {
     const row = root.querySelector(`[data-combatant-id="${combatantId}"]`);
     if (!row) return null;
 
-    const mode: TrackerMountMode = root.id === "pf2e-hud-tracker" ? "pf2e-hud" : "core";
+    const mode: TrackerMountMode = isPf2eHudTracker(root) ? "pf2e-hud" : "core";
     const targetSelector = mode === "pf2e-hud"
         ? ".controls"
         : ".token-name, .name-controls";
@@ -27,7 +49,8 @@ export function resolveTrackerMount(root: QueryableNode, combatantId: string, hu
 }
 
 export function resolveMapMountTarget(root: QueryableNode, combatantId: string): any | null {
-    if (root.id !== "pf2e-hud-tracker") return null;
+    if (!isPf2eHudTracker(root)) return null;
+    if (!root.classList?.contains("alternate-controls")) return null;
 
     const row = root.querySelector(`[data-combatant-id="${combatantId}"]`);
     if (!row) return null;
@@ -46,10 +69,56 @@ export function shouldShowTrackerForMount(
     return isOwner || isPC;
 }
 
-export function canShowManualActionButton(isGM: boolean): boolean {
-    return isGM;
+export function canShowManualActionButton(isGM: boolean, isOwner = false): boolean {
+    return isGM || isOwner;
 }
 
 export function hasCompactOverspendTint(overflowCount: number): boolean {
     return overflowCount > 0;
+}
+
+export function getTrackerRenderKey({
+    mode,
+    combatantId,
+    isGM,
+    isOwner,
+    isPC,
+    isQuickened,
+    mapAttackCount,
+    maxReactions,
+    log,
+}: {
+    mode: TrackerMountMode;
+    combatantId: string;
+    isGM: boolean;
+    isOwner: boolean;
+    isPC: boolean;
+    isQuickened: boolean;
+    mapAttackCount: number;
+    maxReactions: number;
+    log: RenderKeyEntry[];
+}): string {
+    const entries = log.map(entry => [
+        entry.msgId ?? "",
+        entry.type ?? "",
+        entry.cost ?? 0,
+        entry.label ?? "",
+        entry.isQuickenedEligible ? 1 : 0,
+        entry.isMapRelevant ? 1 : 0,
+        entry.mapProfile ?? "",
+        entry.actionModifiers?.join(",") ?? "",
+        entry.visibilityKey ?? "",
+    ].join(":")).join("|");
+
+    return [
+        mode,
+        combatantId,
+        `gm:${isGM ? 1 : 0}`,
+        `owner:${isOwner ? 1 : 0}`,
+        `pc:${isPC ? 1 : 0}`,
+        `quick:${isQuickened ? 1 : 0}`,
+        `map:${mapAttackCount}`,
+        `reactions:${maxReactions}`,
+        entries,
+    ].join("|");
 }

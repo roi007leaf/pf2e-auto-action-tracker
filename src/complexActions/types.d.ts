@@ -1,4 +1,4 @@
-import { ActionLogEntry } from "../ActionManager";
+import type { ActionLogEntry } from "../ActionManager";
 
 /** Supported basic action identifiers */
 export type ActionSlug = 'strike' | 'move' | 'reload' | 'draw' | 'cast' | 'skill-check' | string;
@@ -53,6 +53,7 @@ export interface LeafState {
     minCost: number | undefined;
     maxCost: number | undefined;
     overrideParentCost: number | undefined;
+    modifiers: ActionModifier[];
     minOccurrences: number;
     maxOccurrences: number;
     satisfied: boolean; // Hit the mininum (no sequence broken warning)

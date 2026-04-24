@@ -9,7 +9,7 @@ import { SocketsManager } from "./SocketManager";
 import { ChatMessagePF2e, CombatantPF2e, EncounterPF2e } from "module-helpers"
 import { logConsole } from "./logger";
 import { SCOPE, recentIntent } from "./globals";
-import { hasEconomyRelevantActorUpdate, isEconomyConditionSlug, shouldRefreshEconomyImmediatelyForActor, shouldRefreshEconomyImmediatelyForCondition } from "./economySync";
+import { findPf2eHudTracker } from "./trackerAdapters";
 
 // Initialization
 Hooks.once("init", () => {
@@ -128,13 +128,17 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
     const htmlElement = html instanceof HTMLElement ? html : html[0] || (html.element instanceof HTMLElement ? html.element : null);
     if (!htmlElement || !data.combat) return;
 
-    data.combat.combatants.forEach((c: any) => {
-        CombatUIManager.injectIcons(htmlElement, c);
-    });
-    CombatUIManager.activateListeners(htmlElement);
+    if (SettingsManager.get("showCoreTracker")) {
+        data.combat.combatants.forEach((c: any) => {
+            CombatUIManager.injectIcons(htmlElement, c);
+        });
+        CombatUIManager.activateListeners(htmlElement);
+    }
 
     window.setTimeout(() => {
-        const hudTracker = document.getElementById("pf2e-hud-tracker");
+        if (!SettingsManager.get("showPf2eHudTracker")) return;
+
+        const hudTracker = findPf2eHudTracker(document);
         if (!hudTracker) return;
 
         data.combat.combatants.forEach((c: any) => {
@@ -214,6 +218,11 @@ Hooks.on("updateCombat", async (combat: EncounterPF2e, updateData: any, options:
 });
 
 // Movement Hook
+Hooks.on("preUpdateToken", (tokenDoc: any, update: any) => {
+    if (game.user?.id !== game.users?.activeGM?.id) return;
+    MovementManager.captureTokenPosition(tokenDoc, update);
+});
+
 Hooks.on("updateToken", (tokenDoc: any, update: any) => {
     if (game.user?.id !== game.users?.activeGM?.id) return;
 
@@ -222,43 +231,4 @@ Hooks.on("updateToken", (tokenDoc: any, update: any) => {
 
     // Delegate everything to MovementManager
     MovementManager.handleTokenUpdate(tokenDoc, update);
-});
-
-async function refreshCombatantEconomyForActor(actor: any) {
-    if (game.user?.id !== game.users?.activeGM?.id) return;
-
-    const combat = game.combat;
-    if (!combat?.active || !actor?.id) return;
-
-    const combatants = combat.combatants.filter((c: any) => c.actor?.id === actor.id);
-    if (combatants.length === 0) return;
-
-    for (const combatant of combatants) {
-        await ActionManager.refreshEconomyFromConditions(combatant);
-    }
-
-    (ui as any).combat?.render();
-}
-
-Hooks.on("updateActor", async (actor: any, updateData: any) => {
-    if (!shouldRefreshEconomyImmediatelyForActor(actor, updateData)) return;
-    await refreshCombatantEconomyForActor(actor);
-});
-
-Hooks.on("createItem", async (item: any) => {
-    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
-    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
-    await refreshCombatantEconomyForActor(item.parent);
-});
-
-Hooks.on("updateItem", async (item: any) => {
-    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
-    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
-    await refreshCombatantEconomyForActor(item.parent);
-});
-
-Hooks.on("deleteItem", async (item: any) => {
-    if (!item?.parent || !isEconomyConditionSlug(item.slug)) return;
-    if (!shouldRefreshEconomyImmediatelyForCondition(item.slug)) return;
-    await refreshCombatantEconomyForActor(item.parent);
 });
