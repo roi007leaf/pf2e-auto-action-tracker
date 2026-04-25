@@ -7,7 +7,7 @@ import { MovementManager } from "./MovementManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
 import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
 import type { ActiveActivityState, ActionModifier } from "./complexActions/types";
-import { getCurrentMapState } from "./mapTracker";
+import { getCurrentMapStateFromLog } from "./mapTracker";
 
 export interface ActionLogEntry {
     cost: number;
@@ -411,7 +411,8 @@ export class ActionManager {
     static getCurrentMAP(
         combatant: CombatantPF2e
     ): { attackCount: number, penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
-        return getCurrentMapState(this.getFlattenedActions(combatant));
+        const isActiveTurn = (game as any).combat?.combatant?.id === (combatant as any).id;
+        return getCurrentMapStateFromLog(this._getInternalLog(combatant), isActiveTurn);
     }
 
     /**

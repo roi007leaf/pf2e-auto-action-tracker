@@ -23,7 +23,7 @@ export class MovementManager {
     }
 
     static async handleTokenUpdate(tokenDoc: any, update: any) {
-        const combatant = MovementManager.resolveCombatant(tokenDoc);
+        const combatant = tokenDoc.combatant;
         if (!combatant) return;
 
         // Use tokenDoc.id as the primary key for physical movement history
@@ -271,16 +271,4 @@ export class MovementManager {
         return [...existingPath, current];
     }
 
-    private static resolveCombatant(tokenDoc: any): CombatantPF2e | undefined {
-        if (tokenDoc.combatant) return tokenDoc.combatant;
-
-        const combat = (game as any).combat;
-        if (!combat?.active) return undefined;
-
-        return combat.combatants.find((c: any) =>
-            c.tokenId === tokenDoc.id ||
-            c.token?.id === tokenDoc.id ||
-            c.actorId === tokenDoc.actorId
-        );
-    }
 }

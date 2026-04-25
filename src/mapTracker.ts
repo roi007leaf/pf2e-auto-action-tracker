@@ -1,7 +1,7 @@
 import type { ActionLogEntry } from "./ActionManager";
 
 export function isMapRelevantAction(entry: Partial<ActionLogEntry>): boolean {
-    return entry.isMapRelevant === true && !entry.actionModifiers?.includes("deferMAP");
+    return entry.isMapRelevant === true && entry.type !== "reaction" && !entry.actionModifiers?.includes("deferMAP");
 }
 
 export function getMapProfile(entry: Partial<ActionLogEntry>): "standard" | "agile" {
@@ -22,6 +22,32 @@ export function getCurrentMapState(
     }
 
     return { attackCount, penalty: profile === "agile" ? 8 : 10, profile };
+}
+
+export function getCurrentMapStateFromLog(
+    log: Array<Partial<ActionLogEntry>>,
+    isActiveTurn = true
+): { attackCount: number, penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
+    if (!isActiveTurn) return getCurrentMapState([]);
+
+    const mapLog = log.flatMap(entry => {
+        const complexState = entry.ComplexActionState;
+        if (!complexState) return [entry];
+
+        const isComplete = !!complexState.completedBy;
+        const parent = entry.isMapRelevant ? [entry] : [];
+        const children = (complexState.orderedActivityChildActions ?? []).map(child => {
+            if (!isComplete || !child.actionModifiers?.includes("deferMAP")) return child;
+            return {
+                ...child,
+                actionModifiers: child.actionModifiers.filter(modifier => modifier !== "deferMAP"),
+            };
+        });
+
+        return [...parent, ...children];
+    });
+
+    return getCurrentMapState(mapLog);
 }
 
 export function getMapTier(map: { attackCount: number } | { penalty: number }): 0 | 1 | 2 {
@@ -47,12 +73,10 @@ export function getMapDisplayState(map: { attackCount: number, penalty?: number 
         };
     }
 
-    const range = map.penalty
-        ? `-${map.penalty}`
-        : (tier === 1 ? "-4 | -5" : "-8 | -10");
+    const range = tier === 1 ? "-4 | -5" : "-8 | -10";
     const coreText = `MAP: ${range}`;
     const tooltip = `MAP ${tier}: ${range}`;
-    const compactText = map.penalty ? range : `M${tier}`;
+    const compactText = `M${tier}`;
 
     return {
         visible: true,

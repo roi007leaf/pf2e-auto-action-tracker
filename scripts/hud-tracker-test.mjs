@@ -64,6 +64,7 @@ const { getSkillActionMapMetadata } = await import("../src/chatTypeDetectors/ski
 const {
     getMapProfile,
     getCurrentMapState,
+    getCurrentMapStateFromLog,
     formatMapLabel,
     getMapDisplayState,
     isMapRelevantAction,
@@ -146,6 +147,7 @@ assert.equal(hasCompactOverspendTint(2), true);
 assert.equal(isMapRelevantAction({ isMapRelevant: true }), true);
 assert.equal(isMapRelevantAction({ isMapRelevant: false }), false);
 assert.equal(isMapRelevantAction({ isMapRelevant: true, actionModifiers: ["deferMAP"] }), false);
+assert.equal(isMapRelevantAction({ isMapRelevant: true, type: "reaction" }), false);
 assert.equal(isMapRelevantAction({}), false);
 assert.equal(getMapProfile({ mapProfile: "agile" }), "agile");
 assert.equal(getMapProfile({}), "standard");
@@ -164,6 +166,10 @@ assert.deepEqual(
     { attackCount: 0, penalty: 0, profile: "standard" }
 );
 assert.deepEqual(
+    getCurrentMapState([{ isMapRelevant: true, type: "reaction" }]),
+    { attackCount: 0, penalty: 0, profile: "standard" }
+);
+assert.deepEqual(
     getCurrentMapState([
         { isMapRelevant: true, mapProfile: "agile" },
         { isMapRelevant: true, mapProfile: "agile" }
@@ -178,14 +184,46 @@ assert.deepEqual(
     ]),
     { attackCount: 2, penalty: 10, profile: "standard" }
 );
+assert.deepEqual(
+    getCurrentMapStateFromLog([
+        {
+            ComplexActionState: {
+                completedBy: undefined,
+                orderedActivityChildActions: [
+                    { isMapRelevant: true, actionModifiers: ["deferMAP"] },
+                    { isMapRelevant: true, actionModifiers: ["deferMAP"] },
+                ],
+            },
+        },
+    ]),
+    { attackCount: 0, penalty: 0, profile: "standard" }
+);
+assert.deepEqual(
+    getCurrentMapStateFromLog([
+        {
+            ComplexActionState: {
+                completedBy: "final-strike",
+                orderedActivityChildActions: [
+                    { isMapRelevant: true, actionModifiers: ["deferMAP"] },
+                    { isMapRelevant: true, actionModifiers: ["deferMAP"] },
+                ],
+            },
+        },
+    ]),
+    { attackCount: 2, penalty: 10, profile: "standard" }
+);
+assert.deepEqual(
+    getCurrentMapStateFromLog([{ isMapRelevant: true }], false),
+    { attackCount: 0, penalty: 0, profile: "standard" }
+);
 
 assert.equal(formatMapLabel({ attackCount: 0, penalty: 0 }, false), "");
-assert.equal(formatMapLabel({ attackCount: 1, penalty: 5 }, false), "MAP: -5");
-assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, false), "MAP: -4");
-assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, false), "MAP: -8");
+assert.equal(formatMapLabel({ attackCount: 1, penalty: 5 }, false), "MAP: -4 | -5");
+assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, false), "MAP: -4 | -5");
+assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, false), "MAP: -8 | -10");
 assert.equal(formatMapLabel({ attackCount: 0, penalty: 0 }, true), "");
-assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, true), "-4");
-assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, true), "-8");
+assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, true), "M1");
+assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, true), "M2");
 assert.deepEqual(getMapDisplayState({ attackCount: 0, penalty: 0 }), {
     visible: false,
     core: { text: "", inline: false, tooltip: "" },
@@ -193,13 +231,13 @@ assert.deepEqual(getMapDisplayState({ attackCount: 0, penalty: 0 }), {
 });
 assert.deepEqual(getMapDisplayState({ attackCount: 1, penalty: 4 }), {
     visible: true,
-    core: { text: "MAP: -4", inline: false, tooltip: "MAP 1: -4" },
-    compact: { text: "-4", inline: true, tooltip: "MAP 1: -4" },
+    core: { text: "MAP: -4 | -5", inline: false, tooltip: "MAP 1: -4 | -5" },
+    compact: { text: "M1", inline: true, tooltip: "MAP 1: -4 | -5" },
 });
 assert.deepEqual(getMapDisplayState({ attackCount: 2, penalty: 10 }), {
     visible: true,
-    core: { text: "MAP: -10", inline: false, tooltip: "MAP 2: -10" },
-    compact: { text: "-10", inline: true, tooltip: "MAP 2: -10" },
+    core: { text: "MAP: -8 | -10", inline: false, tooltip: "MAP 2: -8 | -10" },
+    compact: { text: "M2", inline: true, tooltip: "MAP 2: -8 | -10" },
 });
 
 const grappleMessage = {
