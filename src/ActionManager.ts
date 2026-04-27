@@ -6,7 +6,8 @@ import { ChatManager } from "./ChatManager";
 import { MovementManager } from "./MovementManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
 import { ComplexActionEngine } from "./complexActions/ComplexActionEngine";
-import { ActiveActivityState } from "./complexActions/types";
+import type { ActiveActivityState, ActionModifier } from "./complexActions/types";
+import { getCurrentMapStateFromLog } from "./mapTracker";
 
 export interface ActionLogEntry {
     cost: number;
@@ -15,6 +16,9 @@ export interface ActionLogEntry {
     type: 'action' | 'reaction' | 'system' | 'bonus';
     slug?: string;
     isQuickenedEligible: boolean;
+    isMapRelevant?: boolean;
+    mapProfile?: "standard" | "agile";
+    actionModifiers?: ActionModifier[];
     sustainItem?: { id: string, name: string };
     ComplexActionState?: ActiveActivityState;
     category: string;
@@ -397,12 +401,18 @@ export class ActionManager {
         return log.flatMap(entry => {
             if (entry.ComplexActionState) {
                 // Return the parent (for metadata) + all children
-                const children = Object.values(entry.ComplexActionState.leaves)
-                    .flatMap(leaf => leaf.childActions);
+                const children = ComplexActionEngine.getAllChildActions(entry.ComplexActionState);
                 return [entry, ...children];
             }
             return [entry];
         });
+    }
+
+    static getCurrentMAP(
+        combatant: CombatantPF2e
+    ): { attackCount: number, penalty: 0 | 4 | 5 | 8 | 10, profile: "standard" | "agile" } {
+        const isActiveTurn = (game as any).combat?.combatant?.id === (combatant as any).id;
+        return getCurrentMapStateFromLog(this._getInternalLog(combatant), isActiveTurn);
     }
 
     /**
@@ -473,12 +483,12 @@ export class ActionManager {
     /**
      * Determine how many actions / reactions to drain from slows/starts, and logs the system action accordingly
      */
-    private static calculateStartOfTurnDrains(combatant: CombatantPF2e) {
+    private static calculateStartOfTurnDrains(combatant: CombatantPF2e, quickenedOverride?: boolean) {
         const actor = (combatant as any).actor!;
         const stunnedVal = ActorHandler.getConditionValue(actor, "stunned");
         const slowedVal = ActorHandler.getConditionValue(actor, "slowed");
         const isParalyzed = actor.hasCondition("paralyzed");
-        const maxActions = ActorHandler.getMaxActions(combatant);
+        const maxActions = ActorHandler.getMaxActions(combatant, quickenedOverride);
 
         const logEntries: ActionLogEntry[] = [];
         let actionsSpent = 0;
@@ -502,6 +512,23 @@ export class ActionManager {
         }
 
         return { logEntries, actionsSpent, reactionsSpent };
+    }
+
+    static async refreshEconomyFromConditions(combatant: CombatantPF2e) {
+        const c = combatant as any;
+        const actor = c.actor as ActorPF2e | undefined;
+        if (!actor) return;
+
+        const isQuickened = ActorHandler.getQuickenedState(combatant);
+        await c.update({
+            [`flags.${SCOPE}.isQuickenedSnapshot`]: isQuickened
+        });
+
+        const { logEntries } = this.calculateStartOfTurnDrains(combatant, isQuickened);
+        const currentLog = [...this._getInternalLog(combatant)];
+        const mergedLog = [...logEntries, ...currentLog.filter(entry => entry.type !== "system")];
+
+        await this._updateLogs(combatant, mergedLog, false);
     }
 
     /**

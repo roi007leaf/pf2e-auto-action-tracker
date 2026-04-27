@@ -9,6 +9,7 @@ import { SocketsManager } from "./SocketManager";
 import { ChatMessagePF2e, CombatantPF2e, EncounterPF2e } from "module-helpers"
 import { logConsole, logError, logInfo, logWarn } from "./logger";
 import { SCOPE, recentIntent } from "./globals";
+import { findPf2eHudTracker } from "./trackerAdapters";
 
 // string is the combatant ID.
 const _queues = new Map<string, Promise<void>>();
@@ -136,10 +137,24 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
     const htmlElement = html instanceof HTMLElement ? html : html[0] || (html.element instanceof HTMLElement ? html.element : null);
     if (!htmlElement || !data.combat) return;
 
-    data.combat.combatants.forEach((c: any) => {
-        CombatUIManager.injectIcons(htmlElement, c);
-    });
-    CombatUIManager.activateListeners(htmlElement);
+    if (SettingsManager.get("showCoreTracker")) {
+        data.combat.combatants.forEach((c: any) => {
+            CombatUIManager.injectIcons(htmlElement, c);
+        });
+        CombatUIManager.activateListeners(htmlElement);
+    }
+
+    window.setTimeout(() => {
+        if (!SettingsManager.get("showPf2eHudTracker")) return;
+
+        const hudTracker = findPf2eHudTracker(document);
+        if (!hudTracker) return;
+
+        data.combat.combatants.forEach((c: any) => {
+            CombatUIManager.injectIcons(hudTracker, c);
+        });
+        CombatUIManager.activateListeners(hudTracker);
+    }, 0);
 });
 
 Hooks.on("renderDamageModifierDialog", async (app: any, html: JQuery) => {

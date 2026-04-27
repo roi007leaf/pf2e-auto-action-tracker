@@ -1,6 +1,6 @@
-import { logInfo } from '../logger';
 import { IActionDetector } from './IActionDetector';
 import { getIsReaction } from './detectorUtilities';
+import { getSkillActionMapMetadata } from './skillMapMetadata';
 
 export class SkillDetector {
     static readonly id = "SkillDetector";
@@ -37,11 +37,15 @@ export class SkillDetector {
         const cost = 1;
         const htmlPool = `${message.flavor || ""} ${message.content || ""}`.trim();
         const isReaction = getIsReaction(message.item, message.flags?.pf2e, htmlPool);
+        const mapMetadata = getSkillActionMapMetadata(message);
 
-        logInfo('context: ', context);
-        logInfo('return: ', { cost, slug, label, isReaction });
-
-        return { cost, slug, label, isReaction };
+        return {
+            cost,
+            slug,
+            label,
+            isReaction,
+            ...mapMetadata
+        };
     }
 }
 

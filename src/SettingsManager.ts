@@ -57,6 +57,24 @@ export class SettingsManager {
             default: false
         });
 
+        settings.register(SCOPE, "showCoreTracker", {
+            name: "Show Core Combat Tracker UI",
+            hint: "Display action tracking controls in the Foundry combat tracker.",
+            scope: "client",
+            config: true,
+            type: Boolean,
+            default: true
+        });
+
+        settings.register(SCOPE, "showPf2eHudTracker", {
+            name: "Show PF2e HUD Tracker UI",
+            hint: "Display action tracking controls in the PF2e HUD tracker when it is present.",
+            scope: "client",
+            config: true,
+            type: Boolean,
+            default: true
+        });
+
         settings.register(SCOPE, "undoAlert", {
             name: "Alert on Move undo causes Action Undo",
             hint: "Whisper player/GM when an undo (Ctrl + Z) forces undo of a non-movement action (like strike).",

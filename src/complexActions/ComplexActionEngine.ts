@@ -1,7 +1,7 @@
 import { logInfo } from "../logger";
 import { SPECIAL_ACTIVITIES } from "./library";
-import { ActiveActivityState, LeafState, OperatorNode, ActionNode, GroupNode } from "./types";
-import { ActionLogEntry } from "../ActionManager";
+import type { ActiveActivityState, LeafState, OperatorNode, ActionNode, GroupNode } from "./types";
+import type { ActionLogEntry } from "../ActionManager";
 import { MovementManager } from "../MovementManager";
 import { ChatManager } from "../ChatManager";
 import { ActorPF2e, CombatantPF2e } from "module-helpers";
@@ -28,6 +28,7 @@ export class ComplexActionEngine {
                         minOccurrences: node.properties.minOccurrences || 1,
                         maxOccurrences: node.properties.maxOccurrences || 1,
                         overrideParentCost: node.properties.overrideParentCost,
+                        modifiers: node.properties.modifiers ?? [],
                         satisfied: false,
                         isClosed: false,
                         childActions: []
@@ -431,6 +432,7 @@ export class ComplexActionEngine {
                 const incomingCost = incoming.cost || 1;
 
                 if (this._actionMeetsCostReqs(leaf, incomingCost) && this._actionMeetsOccurrencesReqs(leaf)) {
+                    incoming.action.actionModifiers = leaf.modifiers;
                     leaf.childActions.push(incoming.action);
 
                     const minOcc = leaf.minOccurrences ?? 1;

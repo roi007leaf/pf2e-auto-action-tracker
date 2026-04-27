@@ -9,6 +9,87 @@
     width: 100%;
 }
 
+#pf2e-hud-tracker .combatants .combatant .details .controls {
+    padding-right: 10px;
+}
+
+#pf2e-hud-tracker .details .controls .pf2e-auto-action-tracker-container {
+    display: inline-flex;
+    float: left;
+    clear: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    width: auto;
+    max-width: calc(100% - 8.75em);
+    margin-left: 3px;
+    margin-right: 12px;
+    margin-top: 0;
+    padding-bottom: 0;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+#pf2e-hud-tracker .controls.alt .pf2e-auto-action-tracker-container {
+    display: none;
+}
+
+#pf2e-hud-tracker .controls.alt .pf2e-auto-action-tracker-map-container {
+    display: none;
+}
+
+#pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-container {
+    display: inline-flex;
+}
+
+#pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-map-container {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 3px;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    height: auto;
+    font-size: 9px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line.compact-overspent .action-icon.spent:not(.reaction):not(.quickened) {
+    color: #ff8a5b;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container .action-overflow-count,
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container .overspend-exclamation {
+    display: none;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon {
+    font-size: 12px !important;
+    padding: 0;
+    margin: 0;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.add-button,
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.finish-button {
+    font-size: 10px !important;
+    margin-left: 1px;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .divider {
+    margin: 0 1px;
+    width: 3px;
+    font-size: 12px;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.quickened {
+    margin-right: 1px;
+}
+
 /* Individual Rows */
 .action-line,
 .reaction-line,
@@ -23,6 +104,40 @@
     font-family: "Signika", sans-serif;
     font-weight: bold;
     line-height: 1.2;
+}
+
+.map-line {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 16px;
+    font-size: 10px;
+    line-height: 1;
+    color: #c9b37a;
+    font-weight: 700;
+    font-family: "Signika", sans-serif;
+}
+
+.map-line.tracker-tooltip {
+    pointer-events: auto;
+}
+
+.reaction-line .map-line.inline {
+    height: auto;
+}
+
+#pf2e-hud-tracker .map-line.compact {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+    padding: 0 2px;
+    min-width: 1.4em;
+    font-size: 8px;
+    color: #ffcf70;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 2px;
+    white-space: nowrap;
 }
 
 /* Base Icon Styles */
@@ -107,6 +222,16 @@
 .action-icon.reaction.unspent {
     color: transparent;
     -webkit-text-stroke: 1px #dbb75c;
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.reaction.spent {
+    color: #ff8a5b;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.75);
+}
+
+#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.reaction.unspent {
+    -webkit-text-stroke: 1px #d1a94f;
+    opacity: 0.9;
 }
 
 /* Settings Styling */
