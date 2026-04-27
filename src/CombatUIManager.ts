@@ -317,14 +317,6 @@ export class CombatUIManager {
 
         container.appendChild(actionLine);
 
-        if (!isCompact && mapDisplay.visible) {
-            const mapLine = document.createElement("div");
-            mapLine.className = "map-line tracker-tooltip";
-            mapLine.textContent = mapDisplay.core.text;
-            mapLine.dataset.tooltip = mapDisplay.core.tooltip;
-            container.appendChild(mapLine);
-        }
-
         // --- 4. Reactions Line ---
         const fullLog = ActionManager.getActions(combatant); // Get the original full log
         const reactionLog = fullLog.filter(e => e.type === 'reaction');
@@ -355,6 +347,18 @@ export class CombatUIManager {
             }
 
             (isCompact ? actionLine : reactionLine).appendChild(span);
+        }
+        if (!isCompact && mapDisplay.core.text) {
+            const divider = document.createElement("span");
+            divider.className = "divider";
+            divider.textContent = "|";
+            reactionLine.appendChild(divider);
+
+            const mapLine = document.createElement("span");
+            mapLine.className = "map-line inline tracker-tooltip";
+            mapLine.textContent = mapDisplay.core.text;
+            mapLine.dataset.tooltip = mapDisplay.core.tooltip;
+            reactionLine.appendChild(mapLine);
         }
         if (!isCompact) {
             container.appendChild(reactionLine);

@@ -230,17 +230,12 @@ Hooks.on("updateCombat", async (combat: EncounterPF2e, updateData: any, options:
 });
 
 // Movement Hook
-Hooks.on("preUpdateToken", (tokenDoc: any, update: any) => {
-    if (game.user?.id !== game.users?.activeGM?.id) return;
-    MovementManager.captureTokenPosition(tokenDoc, update);
-});
-
 Hooks.on("updateToken", (tokenDoc: any, update: any) => {
     if (game.user?.id !== game.users?.activeGM?.id) return;
     if (!("x" in update || "y" in update || update.movementAction)) return;
 
     const combatant: Combatant = tokenDoc.combatant;
-    if (!combatant?.id) return;
+    if (!combatant.id) return;
 
     enqueueAction(combatant.id, async () => await MovementManager.handleTokenUpdate(tokenDoc, update));
 });

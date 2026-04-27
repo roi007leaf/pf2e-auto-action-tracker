@@ -11,8 +11,6 @@ export class MovementManager {
 
     // Synchronous local storage for history length to prevent race conditions
     private static _historyLengths = new Map<string, number>();
-    private static _lastTokenPositions = new Map<string, { x: number, y: number, elevation: number }>();
-    private static _movementPaths = new Map<string, { x: number, y: number, elevation: number }[]>();
     /**
      * Checks if a specific msgId belongs to a movement action
      */
@@ -24,22 +22,16 @@ export class MovementManager {
         const combatant = tokenDoc.combatant;
         if (!combatant) return;
 
-        const coordList = MovementManager.getMovementCoordinates(tokenDoc, update);
+        // Use tokenDoc.id as the primary key for physical movement history
+        const tokenId = tokenDoc.id;
+        const history = tokenDoc._movementHistory || [];
+        const coordList = history.map((p: any) => ({ x: p.x, y: p.y, elevation: p.elevation ?? 0 }));
         try {
             await MovementManager._processMovement(combatant, tokenDoc, coordList, false);
         } catch (err) {
             logError("Movement Processing Error:", err);
         }
-    }
 
-    static captureTokenPosition(tokenDoc: any, update: any) {
-        if (!tokenDoc?.id || !("x" in update || "y" in update || "elevation" in update)) return;
-
-        MovementManager._lastTokenPositions.set(tokenDoc.id, {
-            x: tokenDoc.x,
-            y: tokenDoc.y,
-            elevation: tokenDoc.elevation ?? 0
-        });
     }
 
     /**
@@ -115,7 +107,7 @@ export class MovementManager {
         // Jitter/GM Drag Checks
         if (distance === 0 || distance > 200) return;
 
-        const movementMode = tokenDoc.movementAction === "walk" ? "stride" : (tokenDoc.movementAction || "stride");
+        const movementMode = tokenDoc.movementAction === "walk" ? "stride" : tokenDoc.movementAction;
         const activeSpeed = ActorHandler.getActiveSpeed(actor, movementMode);
         const isDifficult = MovementManager.checkDifficultTerrain(tokenDoc.object, coordList);
 
@@ -203,7 +195,6 @@ export class MovementManager {
             safety++;
         }
         MovementManager._historyLengths.delete(tokenDoc.id);
-        MovementManager._movementPaths.delete(tokenDoc.id);
     }
 
     static getMovementLabel(distance: number, cost: number, mode: string, isDifficult: boolean) {
@@ -227,38 +218,10 @@ export class MovementManager {
 
     private static storeMovement(tokenDoc: any, coordList: any[]) {
         MovementManager._historyLengths.set(tokenDoc.id, coordList.length);
-        MovementManager._movementPaths.set(tokenDoc.id, coordList);
     }
 
     private static isUndoMovement(tokenDoc: any, coordList: any[]): boolean {
         const lastLength = MovementManager._historyLengths.get(tokenDoc.id) || 0;
         return coordList.length < lastLength;
     }
-
-    private static getMovementCoordinates(tokenDoc: any, update: any): { x: number, y: number, elevation: number }[] {
-        const history = tokenDoc._movementHistory || [];
-        if (history.length > 0) {
-            return history.map((p: any) => ({ x: p.x, y: p.y, elevation: p.elevation ?? 0 }));
-        }
-
-        const previous = MovementManager._lastTokenPositions.get(tokenDoc.id);
-        if (!previous || !("x" in update || "y" in update || "elevation" in update)) return [];
-
-        const current = {
-            x: update.x ?? tokenDoc.x,
-            y: update.y ?? tokenDoc.y,
-            elevation: update.elevation ?? tokenDoc.elevation ?? 0
-        };
-
-        if (previous.x === current.x && previous.y === current.y && previous.elevation === current.elevation) return [];
-
-        const existingPath = MovementManager._movementPaths.get(tokenDoc.id) ?? [previous];
-        const lastPoint = existingPath[existingPath.length - 1];
-        if (lastPoint && lastPoint.x === current.x && lastPoint.y === current.y && lastPoint.elevation === current.elevation) {
-            return existingPath;
-        }
-
-        return [...existingPath, current];
-    }
-
 }

@@ -217,7 +217,7 @@ assert.deepEqual(
     { attackCount: 0, penalty: 0, profile: "standard" }
 );
 
-assert.equal(formatMapLabel({ attackCount: 0, penalty: 0 }, false), "");
+assert.equal(formatMapLabel({ attackCount: 0, penalty: 0 }, false), "MAP: 0");
 assert.equal(formatMapLabel({ attackCount: 1, penalty: 5 }, false), "MAP: -4 | -5");
 assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, false), "MAP: -4 | -5");
 assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, false), "MAP: -8 | -10");
@@ -226,17 +226,17 @@ assert.equal(formatMapLabel({ attackCount: 1, penalty: 4 }, true), "M1");
 assert.equal(formatMapLabel({ attackCount: 2, penalty: 8 }, true), "M2");
 assert.deepEqual(getMapDisplayState({ attackCount: 0, penalty: 0 }), {
     visible: false,
-    core: { text: "", inline: false, tooltip: "" },
+    core: { text: "MAP: 0", inline: true, tooltip: "MAP 0: no multiple attack penalty" },
     compact: { text: "", inline: true, tooltip: "" },
 });
 assert.deepEqual(getMapDisplayState({ attackCount: 1, penalty: 4 }), {
     visible: true,
-    core: { text: "MAP: -4 | -5", inline: false, tooltip: "MAP 1: -4 | -5" },
+    core: { text: "MAP: -4 | -5", inline: true, tooltip: "MAP 1: -4 | -5" },
     compact: { text: "M1", inline: true, tooltip: "MAP 1: -4 | -5" },
 });
 assert.deepEqual(getMapDisplayState({ attackCount: 2, penalty: 10 }), {
     visible: true,
-    core: { text: "MAP: -8 | -10", inline: false, tooltip: "MAP 2: -8 | -10" },
+    core: { text: "MAP: -8 | -10", inline: true, tooltip: "MAP 2: -8 | -10" },
     compact: { text: "M2", inline: true, tooltip: "MAP 2: -8 | -10" },
 });
 

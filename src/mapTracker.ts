@@ -68,7 +68,7 @@ export function getMapDisplayState(map: { attackCount: number, penalty?: number 
     if (tier === 0) {
         return {
             visible: false,
-            core: { text: "", inline: false, tooltip: "" },
+            core: { text: "MAP: 0", inline: true, tooltip: "MAP 0: no multiple attack penalty" },
             compact: { text: "", inline: true, tooltip: "" },
         };
     }
@@ -80,7 +80,7 @@ export function getMapDisplayState(map: { attackCount: number, penalty?: number 
 
     return {
         visible: true,
-        core: { text: coreText, inline: false, tooltip },
+        core: { text: coreText, inline: true, tooltip },
         compact: { text: compactText, inline: true, tooltip },
     };
 }
@@ -90,6 +90,6 @@ export function formatMapLabel(
     compact: boolean
 ): string {
     const displayState = getMapDisplayState(map);
-    if (!displayState.visible) return "";
+    if (!displayState.visible) return compact ? "" : displayState.core.text;
     return compact ? displayState.compact.text : displayState.core.text;
 }
