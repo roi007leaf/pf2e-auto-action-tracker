@@ -8,9 +8,12 @@ the fun parts of combat - **destroying your enemies!**
 * **Automatic Pip Tracking**: Injects action pips directly into the Combat Tracker for real-time tracking.
 * **Movement Intelligence**: Detects all move actions. It even calculates cost adjustments for Difficult Terrain and Greater Difficult Terrain using V12 Regions.
 * **PF2e Rule Integration:**
-    * **Quickened** Handles Gold pips based on conditions present at the start of the turn.
+    * **Dynamic Action Economy:** The action slot engine dynamically calculates capacity in real-time, safely managing complex condition overlaps (e.g., *Quickened* + *Slowed* + *Stunned*).
+    * **Mid-Turn Condition Dynamics:** Applies or removes action constraints instantly when conditions like *Stunned* are added or removed mid-turn, instantly updating available reactions.
+    * **Feat Integration:** Automatically supports extra action and reaction slots from feats like *Combat Reflexes*, *Divine Reflexes*, *Esoteric Reflexes*, and *Tactical Reflexes*.
     * **Slowed/Stunned**: Automatically drains actions at turn start and decrements the Stunned condition per RAW.
-    * **Reactions**: Tracks reaction usage per combatant.
+* **Multiple Attack Penalty (MAP) Tracking**: Tracks your current Multiple Attack Penalty (standard or agile) and displays it directly in the tracker interface.
+* **PF2E Token HUD Integration**: Seamlessly integrates with the Token HUD so you can view action pips directly on your selected tokens, keeping your eyes on the battlefield.
 * **Complex Action Handling**: Support for complex activities with subordinate actions.
     * **Subordinate Actions:** Handles logic for things like Doctor's Visitation, tracking the Stride followed by your choice of healing skill (with varied cost)
     * **Interrupted Movement:** Supports advanced feats like Dual-Weapon Blitz. You can pause your Stride, resolve Strikes, and resume moving; the module tracks your total coordinate history against the system ruler to ensure you stay within your movement budget.
@@ -34,5 +37,8 @@ Requires the following modules:
 * [socketlib](https://foundryvtt.com/packages/socketlib)
 
 ## Settings
-* **Whisper Alerts:** Configure alerts for overspending, underspending (ending turns with actions left), reminders to Sustain spells (default on), breaking complex actions (using movement in the middle of flurry of blows), and undoing (via Ctrl + Z) forcing removal of other actions.
+* **UI Integration:**
+    * **Show Core Combat Tracker UI:** Display action tracking controls directly inside the native Foundry combat tracker.
+    * **Show PF2e HUD Tracker UI:** Display action tracking controls in the PF2e Token HUD tracker when that module is active.
+* **Whisper Alerts:** Configure automated whispers for overspending actions/reactions, underspending (ending turns with actions left), reminders to Sustain spells (default on), breaking complex actions, and undo warnings.
 * **Debug Mode:** Verbose logging for troubleshooting complex action triggers.
