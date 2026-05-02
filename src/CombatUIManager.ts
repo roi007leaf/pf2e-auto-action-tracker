@@ -285,7 +285,7 @@ export class CombatUIManager {
             renderPip(pip);
 
             // Add divider if transitioning from gold to non-gold
-            if (pip.isGold && !isCompact && i < pipsToRender.length - 1 && !pipsToRender[i + 1].isGold) {
+            if (pip.isGold && i < pipsToRender.length - 1 && !pipsToRender[i + 1].isGold) {
                 const divider = document.createElement("span");
                 divider.className = "divider";
                 divider.textContent = "|";
@@ -313,14 +313,12 @@ export class CombatUIManager {
         }
 
         const isOverspent = log.some(e => ActorHandler.allocateSlots(combatant, [e], 'action').overspent.length > 0);
-        if (overflowCount > 0) {
+        if (overflowCount > 0 && !isCompact) {
             const overflow = document.createElement("span");
             overflow.className = "action-overflow-count";
-            if (!isCompact) {
-                overflow.style.marginLeft = "4px";
-                overflow.style.fontSize = "0.8em";
-                overflow.style.fontWeight = "bold";
-            }
+            overflow.style.marginLeft = "4px";
+            overflow.style.fontSize = "0.8em";
+            overflow.style.fontWeight = "bold";
             overflow.textContent = `+${overflowCount}`;
             overflow.dataset.tooltip = `${overflowCount} more action(s) used`;
             actionLine.appendChild(overflow);
