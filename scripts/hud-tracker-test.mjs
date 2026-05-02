@@ -1,4 +1,21 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function getCssRule(css, selector) {
+    const start = css.indexOf(`${selector} {`);
+    assert.notEqual(start, -1, `Missing CSS selector: ${selector}`);
+
+    const open = css.indexOf("{", start);
+    const close = css.indexOf("}", open);
+    assert.notEqual(open, -1, `Missing CSS rule body for: ${selector}`);
+    assert.notEqual(close, -1, `Missing CSS rule close for: ${selector}`);
+
+    return css.slice(open + 1, close);
+}
 
 class FakeElement {
     constructor({ id = "", classNames = [], dataset = {}, selectors = {} } = {}) {
@@ -109,12 +126,12 @@ assert.equal(
         isGM: true,
         isOwner: false,
         isPC: true,
-        isQuickened: false,
+        actionSlotsKey: "base,quickened",
         mapAttackCount: 1,
         maxReactions: 1,
         log: renderKeyLog,
     }),
-    'pf2e-hud|c1|gm:1|owner:0|pc:1|quick:0|map:1|reactions:1|a1:action:1:Strike:1:1:::|r1:reaction:1:Reactive Strike:0:0:::'
+    'pf2e-hud|c1|gm:1|owner:0|pc:1|slots:base,quickened|map:1|reactions:1|a1:action:1:Strike:1:1:::|r1:reaction:1:Reactive Strike:0:0:::'
 );
 assert.notEqual(
     getTrackerRenderKey({
@@ -123,7 +140,7 @@ assert.notEqual(
         isGM: true,
         isOwner: false,
         isPC: true,
-        isQuickened: false,
+        actionSlotsKey: "base,quickened",
         mapAttackCount: 2,
         maxReactions: 1,
         log: renderKeyLog,
@@ -134,7 +151,7 @@ assert.notEqual(
         isGM: true,
         isOwner: false,
         isPC: true,
-        isQuickened: false,
+        actionSlotsKey: "base,quickened",
         mapAttackCount: 1,
         maxReactions: 1,
         log: renderKeyLog,
@@ -325,3 +342,36 @@ assert.deepEqual(getSkillActionMapMetadata(grappleChatPayload), {
 
 const systemDrainTooltip = "Used: Slowed 1";
 assert.equal(systemDrainTooltip, "Used: Slowed 1");
+
+const css = readFileSync(join(__dirname, "../public/style.css"), "utf8");
+const combatUiSource = readFileSync(join(__dirname, "../src/CombatUIManager.ts"), "utf8");
+const mainSource = readFileSync(join(__dirname, "../src/main.ts"), "utf8");
+const hudCombatantRule = getCssRule(css, "#pf2e-hud-tracker .combatants .combatant");
+const hudControlsRule = getCssRule(css, "#pf2e-hud-tracker .combatants .combatant .details .controls");
+const hudContainerRule = getCssRule(css, "#pf2e-hud-tracker .details .controls .pf2e-auto-action-tracker-container");
+const hudActionLineRule = getCssRule(css, "#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line");
+assert.match(hudCombatantRule, /height:\s*auto/);
+assert.match(hudCombatantRule, /min-height:\s*66px/);
+assert.match(hudControlsRule, /padding-bottom:\s*0/);
+assert.match(hudControlsRule, /text-align:\s*center/);
+assert.match(hudContainerRule, /display:\s*flex/);
+assert.match(hudContainerRule, /justify-content:\s*flex-start/);
+assert.match(hudContainerRule, /float:\s*none/);
+assert.match(hudContainerRule, /clear:\s*both/);
+assert.match(hudContainerRule, /width:\s*100%/);
+assert.match(hudContainerRule, /max-width:\s*100%/);
+assert.match(hudContainerRule, /white-space:\s*nowrap/);
+assert.match(hudContainerRule, /margin-top:\s*0/);
+assert.match(hudContainerRule, /margin-bottom:\s*4px/);
+assert.doesNotMatch(hudContainerRule, /position:\s*relative/);
+assert.doesNotMatch(hudContainerRule, /top:\s*-/);
+assert.match(hudActionLineRule, /flex-wrap:\s*nowrap/);
+assert.match(hudActionLineRule, /white-space:\s*nowrap/);
+assert.match(combatUiSource, /const MAX_PIPS = 6/);
+assert.doesNotMatch(combatUiSource, /applyPf2eHudRowHeight/);
+assert.doesNotMatch(readFileSync(join(__dirname, "../src/trackerAdapters.ts"), "utf8"), /PF2E_HUD_CENTER/);
+assert.doesNotMatch(readFileSync(join(__dirname, "../src/trackerAdapters.ts"), "utf8"), /translateY/);
+assert.doesNotMatch(combatUiSource, /requestAnimationFrame/);
+assert.match(mainSource, /syncPf2eHudTracker/);
+assert.match(mainSource, /MutationObserver/);
+assert.doesNotMatch(mainSource, /window\.setTimeout\(\(\) => \{\s*if \(!SettingsManager\.get\("showPf2eHudTracker"\)\) return;/);

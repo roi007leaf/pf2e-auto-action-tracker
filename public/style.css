@@ -1,345 +1,383 @@
 /* Container Layout */
 .pf2e-auto-action-tracker-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0px;
-    margin-top: 2px;
-    padding-bottom: 2px;
-    pointer-events: none;
-    width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  margin-top: 2px;
+  padding-bottom: 2px;
+  pointer-events: none;
+  width: 100%;
+}
+
+#pf2e-hud-tracker .combatants .combatant {
+  height: auto;
+  min-height: 66px;
 }
 
 #pf2e-hud-tracker .combatants .combatant .details .controls {
-    padding-right: 10px;
+  padding-right: 10px;
+  padding-bottom: 0;
+  text-align: center;
 }
 
 #pf2e-hud-tracker .details .controls .pf2e-auto-action-tracker-container {
-    display: inline-flex;
-    float: left;
-    clear: none;
-    flex-direction: row;
-    align-items: center;
-    gap: 0;
-    width: auto;
-    max-width: calc(100% - 8.75em);
-    margin-left: 3px;
-    margin-right: 12px;
-    margin-top: 0;
-    padding-bottom: 0;
-    vertical-align: middle;
-    white-space: nowrap;
+  display: flex;
+  float: none;
+  clear: both;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  align-content: center;
+  justify-content: flex-start;
+  gap: 0;
+  row-gap: 1px;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  margin-top: 0;
+  margin-bottom: 4px;
+  padding-bottom: 0;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 #pf2e-hud-tracker .controls.alt .pf2e-auto-action-tracker-container {
-    display: none;
+  display: none;
 }
 
 #pf2e-hud-tracker .controls.alt .pf2e-auto-action-tracker-map-container {
-    display: none;
+  display: none;
 }
 
-#pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-container {
-    display: inline-flex;
+#pf2e-hud-tracker.alternate-controls
+  .controls.alt
+  .pf2e-auto-action-tracker-container {
+  display: inline-flex;
 }
 
-#pf2e-hud-tracker.alternate-controls .controls.alt .pf2e-auto-action-tracker-map-container {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 3px;
+#pf2e-hud-tracker.alternate-controls
+  .controls.alt
+  .pf2e-auto-action-tracker-map-container {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 3px;
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line {
-    display: inline-flex;
-    flex-wrap: nowrap;
-    gap: 0;
-    height: auto;
-    font-size: 9px;
-    line-height: 1;
-    white-space: nowrap;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-content: center;
+  gap: 0;
+  row-gap: 1px;
+  height: auto;
+  font-size: 9px;
+  line-height: 1;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-line.compact-overspent .action-icon.spent:not(.reaction):not(.quickened) {
-    color: #ff8a5b;
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.55);
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-line.compact-overspent
+  .action-icon.spent:not(.reaction):not(.quickened) {
+  color: #ff8a5b;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.55);
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container .action-overflow-count {
-    display: none;
+  display: inline;
+  margin-left: 1px;
+  margin-right: 1px;
+  font-size: 8px;
+  font-weight: bold;
+  color: #ffcf70;
 }
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container .overspend-exclamation {
-    display: inline;
-    font-size: 10px;
-    margin-left: -2px;
-    margin-right: 2px;
+  display: inline;
+  font-size: 10px;
+  margin-left: -2px;
+  margin-right: 2px;
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon {
-    font-size: 12px !important;
-    padding: 0;
-    margin: 0;
+  font-size: 12px !important;
+  padding: 0;
+  margin: 0;
 }
 
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.add-button,
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.finish-button {
-    font-size: 10px !important;
-    margin-left: 1px;
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-icon.add-button,
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-icon.finish-button {
+  font-size: 10px !important;
+  margin-left: 1px;
 }
 
 #pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .divider {
-    margin: 0 1px;
-    width: 3px;
-    font-size: 12px;
+  margin: 0 1px;
+  width: 3px;
+  font-size: 12px;
 }
 
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.quickened {
-    margin-right: 1px;
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-icon.quickened {
+  margin-right: 1px;
 }
 
 /* Individual Rows */
 .action-line,
 .reaction-line,
 .controls-line {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 2px;
-    height: 20px;
-    font-size: 11px;
-    color: #ceba96;
-    font-family: "Signika", sans-serif;
-    font-weight: bold;
-    line-height: 1.2;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  font-size: 11px;
+  color: #ceba96;
+  font-family: "Signika", sans-serif;
+  font-weight: bold;
+  line-height: 1.2;
 }
 
 .map-line {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 16px;
-    font-size: 10px;
-    line-height: 1;
-    color: #c9b37a;
-    font-weight: 700;
-    font-family: "Signika", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 1;
+  color: #c9b37a;
+  font-weight: 700;
+  font-family: "Signika", sans-serif;
 }
 
 .map-line.tracker-tooltip {
-    pointer-events: auto;
+  pointer-events: auto;
 }
 
 .reaction-line .map-line.inline {
-    height: auto;
+  height: auto;
 }
 
 #pf2e-hud-tracker .map-line.compact {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 2px;
-    padding: 0 2px;
-    min-width: 1.4em;
-    font-size: 8px;
-    color: #ffcf70;
-    background: rgba(0, 0, 0, 0.18);
-    border-radius: 2px;
-    white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  padding: 0 2px;
+  min-width: 1.4em;
+  font-size: 8px;
+  color: #ffcf70;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+  white-space: nowrap;
 }
 
 /* Base Icon Styles */
 .action-icon {
-    font-family: "Pathfinder2eActions" !important;
-    font-size: 18px !important;
-    display: inline-block;
-    pointer-events: auto !important;
-    cursor: pointer;
-    user-select: none;
-    flex-shrink: 0;
-    padding: 2px;
-    margin: -2px;
+  font-family: "Pathfinder2eActions" !important;
+  font-size: 18px !important;
+  display: inline-block;
+  pointer-events: auto !important;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  padding: 2px;
+  margin: -2px;
 }
 
 /* Specific Style for the Manual Add Button */
 .action-icon.add-button {
-    font-family: "Font Awesome 6 Free" !important;
-    /* Force Standard Icons */
-    font-weight: 900;
-    font-size: 14px !important;
-    /* Smaller than action pips */
-    margin-left: 8px;
-    /* Breathing room from pips */
-    color: #ceba96;
-    opacity: 0.7;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
+  font-family: "Font Awesome 6 Free" !important;
+  /* Force Standard Icons */
+  font-weight: 900;
+  font-size: 14px !important;
+  /* Smaller than action pips */
+  margin-left: 8px;
+  /* Breathing room from pips */
+  color: #ceba96;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
 }
 
 .action-icon.add-button:hover {
-    opacity: 1;
-    color: #ffffff;
-    transform: scale(1.2);
+  opacity: 1;
+  color: #ffffff;
+  transform: scale(1.2);
 }
 
 .action-icon.add-button i {
-    pointer-events: none;
-    /* Fixes the click-target bug */
+  pointer-events: none;
+  /* Fixes the click-target bug */
 }
 
 /* Divider for Quickened */
 .pf2e-auto-action-tracker-container .divider {
-    font-family: "Roboto", sans-serif;
-    font-size: 16px;
-    color: #888;
-    margin: 0 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 4px;
-    font-weight: normal;
+  font-family: "Roboto", sans-serif;
+  font-size: 16px;
+  color: #888;
+  margin: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4px;
+  font-weight: normal;
 }
 
 .action-icon.quickened.spent {
-    color: #dbb75c !important;
-    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
+  color: #dbb75c !important;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.5));
 }
 
 .action-icon.quickened.unspent {
-    color: transparent;
-    -webkit-text-stroke: 1.5px #dbb75c !important;
-    filter: drop-shadow(0 0 2px rgba(219, 183, 92, 0.4));
+  color: transparent;
+  -webkit-text-stroke: 1.5px #dbb75c !important;
+  filter: drop-shadow(0 0 2px rgba(219, 183, 92, 0.4));
 }
 
 .action-icon.spent {
-    color: #4d5bd8;
-    -webkit-text-stroke: 0;
+  color: #4d5bd8;
+  -webkit-text-stroke: 0;
 }
 
 .action-icon.unspent {
-    color: transparent;
-    -webkit-text-stroke: 1px #ffffff;
+  color: transparent;
+  -webkit-text-stroke: 1px #ffffff;
 }
 
 .action-icon.reaction.spent {
-    color: #dbb75c;
-    -webkit-text-stroke: 0;
+  color: #dbb75c;
+  -webkit-text-stroke: 0;
 }
 
 .action-icon.reaction.unspent {
-    color: transparent;
-    -webkit-text-stroke: 1px #dbb75c;
+  color: transparent;
+  -webkit-text-stroke: 1px #dbb75c;
 }
 
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.reaction.spent {
-    color: #ff8a5b;
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.75);
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-icon.reaction.spent {
+  color: #ff8a5b;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.75);
 }
 
-#pf2e-hud-tracker .pf2e-auto-action-tracker-container.compact .action-icon.reaction.unspent {
-    -webkit-text-stroke: 1px #d1a94f;
-    opacity: 0.9;
+#pf2e-hud-tracker
+  .pf2e-auto-action-tracker-container.compact
+  .action-icon.reaction.unspent {
+  -webkit-text-stroke: 1px #d1a94f;
+  opacity: 0.9;
 }
 
 /* Settings Styling */
 div.form-group[data-setting-id^="pf2e-auto-action-tracker.header"] {
-    border-top: 2px solid #7a7971;
-    padding-top: 10px;
-    margin-top: 15px;
-    background: rgba(0, 0, 0, 0.1);
+  border-top: 2px solid #7a7971;
+  padding-top: 10px;
+  margin-top: 15px;
+  background: rgba(0, 0, 0, 0.1);
 }
 
 div.form-group[data-setting-id^="pf2e-auto-action-tracker.header"] label {
-    font-weight: bold !important;
-    text-transform: uppercase;
-    font-size: 1.1em;
-    color: #ff6400;
+  font-weight: bold !important;
+  text-transform: uppercase;
+  font-size: 1.1em;
+  color: #ff6400;
 }
 
 div.form-group[data-setting-id^="pf2e-auto-action-tracker.header"] .form-fields,
 div.form-group[data-setting-id^="pf2e-auto-action-tracker.header"] .notes {
-    display: none !important;
+  display: none !important;
 }
 
 /* Alerts and Overspend */
 .overspend-exclamation {
-    color: #ff0000;
-    font-weight: bold;
-    font-family: "Helvetica", sans-serif;
-    margin-right: 2px;
-    font-size: 1.1em;
-    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  color: #ff0000;
+  font-weight: bold;
+  font-family: "Helvetica", sans-serif;
+  margin-right: 2px;
+  font-size: 1.1em;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
 }
 
 .action-overflow-dots {
-    color: var(--color-text-dark-secondary);
-    margin-left: 4px;
-    font-weight: bold;
+  color: var(--color-text-dark-secondary);
+  margin-left: 4px;
+  font-weight: bold;
 }
 
 .action-icon.spent.overspend-pip {
-    color: #ff8888;
+  color: #ff8888;
 }
 
 .action-icon:hover {
-    filter: brightness(1.2);
-    transform: scale(1.1);
-    transition: transform 0.1s ease;
+  filter: brightness(1.2);
+  transform: scale(1.1);
+  transition: transform 0.1s ease;
 }
 
 /* Manual Form Dialog Styling */
 .pf2e-action-form .form-group {
-    margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 @keyframes pf2e-action-glow {
-    0% {
-        box-shadow: 0 0 5px #ff6400;
-        border: 1px solid #ff6400;
-    }
+  0% {
+    box-shadow: 0 0 5px #ff6400;
+    border: 1px solid #ff6400;
+  }
 
-    50% {
-        box-shadow: 0 0 20px #ff6400;
-        border: 1px solid #ff6400;
-    }
+  50% {
+    box-shadow: 0 0 20px #ff6400;
+    border: 1px solid #ff6400;
+  }
 
-    100% {
-        box-shadow: 0 0 5px #ff6400;
-        border: 1px solid #ff6400;
-    }
+  100% {
+    box-shadow: 0 0 5px #ff6400;
+    border: 1px solid #ff6400;
+  }
 }
 
 .pf2e-action-highlight {
-    animation: pf2e-action-glow 1s ease-in-out infinite alternate;
-    z-index: 1;
-    /* Ensure it sits above other cards slightly */
-    transition: all 0.5s ease;
+  animation: pf2e-action-glow 1s ease-in-out infinite alternate;
+  z-index: 1;
+  /* Ensure it sits above other cards slightly */
+  transition: all 0.5s ease;
 }
 
 .action-icon.finish-button {
-    font-family: "Font Awesome 6 Free" !important;
-    font-weight: 900;
-    font-size: 14px !important;
-    margin-left: 8px;
-    /* This provides the breathing room from the pips */
-    color: #ceba96;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
+  font-family: "Font Awesome 6 Free" !important;
+  font-weight: 900;
+  font-size: 14px !important;
+  margin-left: 8px;
+  /* This provides the breathing room from the pips */
+  color: #ceba96;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
 }
 
 /* Success state when ready to finish */
 .action-icon.finish-button:not(.disabled) {
-    color: #4caf50;
-    /* A subtle green to indicate "Ready" */
-    opacity: 0.9;
+  color: #4caf50;
+  /* A subtle green to indicate "Ready" */
+  opacity: 0.9;
 }
 
 .action-icon.finish-button:not(.disabled):hover {
-    opacity: 1;
-    color: #81c784;
-    transform: scale(1.2);
+  opacity: 1;
+  color: #81c784;
+  transform: scale(1.2);
 }
 
 /* Re-use the click-target fix from your add-button */
 .action-icon.finish-button i {
-    pointer-events: none;
+  pointer-events: none;
 }

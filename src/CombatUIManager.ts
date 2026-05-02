@@ -313,12 +313,14 @@ export class CombatUIManager {
         }
 
         const isOverspent = log.some(e => ActorHandler.allocateSlots(combatant, [e], 'action').overspent.length > 0);
-        if (overflowCount > 0 && !isCompact) {
+        if (overflowCount > 0) {
             const overflow = document.createElement("span");
             overflow.className = "action-overflow-count";
-            overflow.style.marginLeft = "4px";
-            overflow.style.fontSize = "0.8em";
-            overflow.style.fontWeight = "bold";
+            if (!isCompact) {
+                overflow.style.marginLeft = "4px";
+                overflow.style.fontSize = "0.8em";
+                overflow.style.fontWeight = "bold";
+            }
             overflow.textContent = `+${overflowCount}`;
             overflow.dataset.tooltip = `${overflowCount} more action(s) used`;
             actionLine.appendChild(overflow);

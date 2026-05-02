@@ -14,6 +14,34 @@ import { findPf2eHudTracker } from "./trackerAdapters";
 
 // string is the combatant ID.
 const _queues = new Map<string, Promise<void>>();
+let pf2eHudObserver: MutationObserver | undefined;
+
+function syncPf2eHudTracker(combat: any): boolean {
+    if (!SettingsManager.get("showPf2eHudTracker")) return true;
+
+    const hudTracker = findPf2eHudTracker(document);
+    if (!hudTracker) return false;
+
+    combat.combatants.forEach((c: any) => {
+        CombatUIManager.injectIcons(hudTracker, c);
+    });
+    CombatUIManager.activateListeners(hudTracker);
+    return true;
+}
+
+function observePf2eHudTracker(combat: any): boolean {
+    const hudTracker = findPf2eHudTracker(document);
+    if (!hudTracker) return false;
+
+    if (pf2eHudObserver) pf2eHudObserver.disconnect();
+    pf2eHudObserver = new MutationObserver(() => {
+        if (game.combat === combat || game.combat?.id === combat.id) {
+            syncPf2eHudTracker(combat);
+        }
+    });
+    pf2eHudObserver.observe(hudTracker, { childList: true, subtree: true });
+    return true;
+}
 
 // Initialization
 Hooks.once("init", () => {
@@ -146,17 +174,13 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
         CombatUIManager.activateListeners(htmlElement);
     }
 
-    window.setTimeout(() => {
-        if (!SettingsManager.get("showPf2eHudTracker")) return;
-
-        const hudTracker = findPf2eHudTracker(document);
-        if (!hudTracker) return;
-
-        data.combat.combatants.forEach((c: any) => {
-            CombatUIManager.injectIcons(hudTracker, c);
-        });
-        CombatUIManager.activateListeners(hudTracker);
-    }, 0);
+    if (!syncPf2eHudTracker(data.combat)) {
+        window.setTimeout(() => {
+            if (syncPf2eHudTracker(data.combat)) observePf2eHudTracker(data.combat);
+        }, 0);
+    } else {
+        observePf2eHudTracker(data.combat);
+    }
 });
 
 Hooks.on("renderDamageModifierDialog", async (app: any, html: JQuery) => {
