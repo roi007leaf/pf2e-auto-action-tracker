@@ -11,12 +11,31 @@ import { logConsole, logError, logInfo, logWarn } from "./logger";
 import { SCOPE, recentIntent } from "./globals";
 import { runAllConflictChecks } from "./otherModConflicts";
 import { findPf2eHudTracker } from "./trackerAdapters";
-import { isCurrentUserActiveGM, loadHandlebarsTemplates } from "./foundryCompat";
+import { getCombatants, isCurrentUserActiveGM, loadHandlebarsTemplates } from "./foundryCompat";
 
 // string is the combatant ID.
 const _queues = new Map<string, Promise<void>>();
 let pf2eHudObserver: MutationObserver | undefined;
 let isReady = false;
+
+function findCombatant(combat: any, predicate: (combatant: any) => boolean): CombatantPF2e | undefined {
+    return getCombatants(combat).find(predicate) as CombatantPF2e | undefined;
+}
+
+function findCombatantById(combat: any, combatantId?: string): CombatantPF2e | undefined {
+    if (!combatantId) return;
+    return findCombatant(combat, (c: any) => c.id === combatantId);
+}
+
+function findCombatantByTokenOrActor(combat: any, tokenId?: string, actorId?: string): CombatantPF2e | undefined {
+    if (!tokenId && !actorId) return;
+    return findCombatant(combat, (c: any) => tokenId ? c.tokenId === tokenId : c.actorId === actorId);
+}
+
+function findCombatantByMessage(combat: any, message: ChatMessagePF2e): CombatantPF2e | undefined {
+    const speaker = message.speaker;
+    return findCombatantByTokenOrActor(combat, speaker?.token, speaker?.actor);
+}
 
 function syncPf2eHudTracker(combat: any): boolean {
     if (!SettingsManager.get("showPf2eHudTracker")) return true;
@@ -24,7 +43,7 @@ function syncPf2eHudTracker(combat: any): boolean {
     const hudTracker = findPf2eHudTracker(document);
     if (!hudTracker) return false;
 
-    combat.combatants.forEach((c: any) => {
+    getCombatants(combat).forEach((c: any) => {
         CombatUIManager.injectIcons(hudTracker, c);
     });
     CombatUIManager.activateListeners(hudTracker);
@@ -80,9 +99,7 @@ Hooks.on("closeDamageModifierDialog", async (app: any) => {
     const tokenId = app.token?.id;
     const actorId = app.actor?.id;
 
-    const combatant = game.combat?.combatants.find((c: any) =>
-        tokenId ? c.tokenId === tokenId : c.actorId === actorId
-    );
+    const combatant = findCombatantByTokenOrActor(game.combat, tokenId, actorId);
 
     const c = combatant as any;
     if (!c?.id || !combatant) return;
@@ -110,9 +127,7 @@ Hooks.on("deleteChatMessage", async (message: ChatMessagePF2e) => {
     if (!(game as any).combat?.active || !message.id) return;
 
     const speaker = message.speaker;
-    const combatant = game.combat?.combatants.find((c: any) =>
-        speaker.token ? c.tokenId === speaker.token : c.actorId === speaker.actor
-    );
+    const combatant = findCombatantByMessage((game as any).combat, message);
     const c = combatant as any as Combatant
 
     if (!combatant || !c.id) return;
@@ -132,7 +147,7 @@ Hooks.on("deleteCombat", async (combat: EncounterPF2e) => {
 
     if (!isCurrentUserActiveGM()) return;
 
-    for (const combatant of (combat.combatants as any)) {
+    for (const combatant of getCombatants(combat)) {
         const actor = combatant.actor;
         if (actor) {
             await ActorHandler.cleanup(actor);
@@ -177,7 +192,7 @@ Hooks.on("renderCombatTracker", (app: any, html: any, data: any) => {
     if (!htmlElement || !data.combat) return;
 
     if (SettingsManager.get("showCoreTracker")) {
-        data.combat.combatants.forEach((c: any) => {
+        getCombatants(data.combat).forEach((c: any) => {
             CombatUIManager.injectIcons(htmlElement, c);
         });
         CombatUIManager.activateListeners(htmlElement);
@@ -198,9 +213,7 @@ Hooks.on("renderDamageModifierDialog", async (app: any, html: JQuery) => {
     const tokenId = app.token?.id;
     const actorId = app.actor?.id;
 
-    const combatant = game.combat?.combatants.find((c: any) =>
-        tokenId ? c.tokenId === tokenId : c.actorId === actorId
-    );
+    const combatant = findCombatantByTokenOrActor(game.combat, tokenId, actorId);
 
     if (!combatant) return;
     const c = combatant as unknown as Combatant
@@ -215,10 +228,7 @@ Hooks.on("updateChatMessage", (message: ChatMessagePF2e, updateData: any) => {
     const combat = game.combat;
     if (!combat?.active) return;
     // Find the combatant associated with this message
-    const speaker = message.speaker;
-    const combatant = combat.combatants.find((c: any) =>
-        speaker.token ? c.tokenId === speaker.token : c.actorId === speaker.actor
-    );
+    const combatant = findCombatantByMessage(combat, message);
     const c = combatant as unknown as Combatant
     if (!c?.id) return;
 
@@ -260,7 +270,7 @@ Hooks.on("updateCombat", async (combat: EncounterPF2e, updateData: any, options:
 
     if (isForward) {
         if (prev?.combatantId) {
-            const previousCombatant = combat.combatants.get(prev.combatantId);
+            const previousCombatant = findCombatantById(combat, prev.combatantId);
             if (previousCombatant) await ActionManager.handleEndOfTurn(previousCombatant);
         }
 
@@ -296,7 +306,7 @@ Hooks.on("createItem", async (item: any) => {
         const actor = item.parent;
         if (!actor) return;
 
-        const combatant = game.combat?.combatants.find((c: any) => c.actorId === actor.id);
+        const combatant = findCombatantByTokenOrActor(game.combat, undefined, actor.id);
         const c = combatant as unknown as Combatant
         if (!c?.id || !combatant) return;
 
@@ -313,7 +323,7 @@ Hooks.on("updateItem", async (item: any, updateData: any) => {
             const actor = item.parent;
             if (!actor) return;
 
-            const combatant = game.combat?.combatants.find((c: any) => c.actorId === actor.id);
+            const combatant = findCombatantByTokenOrActor(game.combat, undefined, actor.id);
             const c = combatant as unknown as Combatant
             if (!c?.id || !combatant) return;
 
@@ -330,7 +340,7 @@ Hooks.on("deleteItem", async (item: any) => {
         const actor = item.parent;
         if (!actor) return;
 
-        const combatant = game.combat?.combatants.find((c: any) => c.actorId === actor.id);
+        const combatant = findCombatantByTokenOrActor(game.combat, undefined, actor.id);
         const c = combatant as unknown as Combatant
         if (!c?.id || !combatant) return;
 

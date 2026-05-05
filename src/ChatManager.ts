@@ -60,9 +60,10 @@ export class ChatManager {
 
     public static getCombatantFromMsg(message: any): CombatantPF2e | undefined {
         const actor = message.actor;
-        if (!actor || !(game as any).combat?.active) return;
+        const combat = (game as any).combat;
+        if (!actor || !combat?.active) return;
         const speaker = message.speaker;
-        const combatant = (game as any).combat.combatants.find((c: any) =>
+        const combatant = getCombatants(combat).find((c: any) =>
             speaker.token ? c.tokenId === speaker.token : c.actorId === actor.id
         );
 
@@ -242,7 +243,7 @@ export class ChatManager {
             if (!actor || (!actor.isOwner && !game.user.isGM)) return;
  
             // Resolve the combatant directly by ID (Identity Crisis Solved)
-            const combatant = game.combat?.combatants.get(combatantId || "");
+            const combatant = getCombatants(game.combat).find((c: any) => c.id === combatantId);
  
             const choice = action === "sustain-yes" ? "yes" : "no";
             const payload = {
@@ -372,7 +373,7 @@ export class ChatManager {
     static async processSustainYes(actor: any, itemId: string, itemName: string, combatantId?: string) {
         const item = actor.items.get(itemId);
         const displayName = itemName || item?.name || "Action";
-        const combatant = game.combat?.combatants.get(combatantId || "");
+        const combatant = getCombatants(game.combat).find((c: any) => c.id === combatantId);
         const token = (combatant as any)?.token;
 
         await ChatMessage.create({
